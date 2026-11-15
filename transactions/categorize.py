@@ -9,7 +9,7 @@ often glue words together ("ACADEMIAMOVIMENTO", "AMAZONMKTPLC").
 import re
 import unicodedata
 
-from .models import Category
+from .models import DefaultExpenseCategory as Category
 
 RULES = [
     (Category.FEES, [

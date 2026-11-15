@@ -6,7 +6,7 @@
 <p><a class="muted-link" href="{{ next|default:'/' }}">← {% translate "Back" %}</a></p>
 
 <section class="card narrow">
-  <p class="eyebrow">{% if entry.kind == "expense" %}{{ entry.get_category_display }}{% else %}{% translate "Income" %}{% endif %}</p>
+  <p class="eyebrow"><span class="chip-dot" style="background: {{ entry.category.color }}"></span>{{ entry.category.label }}</p>
   <h1>{{ entry.description }}</h1>
   <p class="detail-amount {% if entry.kind == 'income' %}positive{% endif %}">
     {{ entry.amount|money:currency }}{% if entry.installment_total %} <span class="muted">× {{ entry.installment_total }}</span>{% endif %}
@@ -72,5 +72,4 @@
     <input type="hidden" name="next" value="{{ next }}">
   </form>
 </section>
-{% include "transactions/_installments_toggle.html" %}
 {% endblock %}

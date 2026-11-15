@@ -1,6 +1,62 @@
-<div class="field field-{{ field.name }}{% if field.errors %} has-error{% endif %}">
-  <label for="{{ field.id_for_label }}">{{ field.label|capfirst }}</label>
-  {{ field }}
-  {% if field.help_text %}<small class="help">{{ field.help_text }}</small>{% endif %}
-  {% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}
-</div>
+{% load i18n %}
+{% if field.widget_type == "radioselect" %}
+  {# Categories (and colours): chips, using the same colours as the chart #}
+  <div class="field field-{{ field.name }}{% if field.errors %} has-error{% endif %}" role="radiogroup" aria-labelledby="{{ field.auto_id }}-label">
+    <span class="field-label" id="{{ field.auto_id }}-label">{{ field.label|capfirst }}</span>
+    <div class="chips">
+      {% for choice in field %}
+        <label class="chip{% if field.name == 'color' %} swatch{% endif %}" for="{{ choice.id_for_label }}"
+               {% if field.name == "color" %}title="{{ choice.data.value }}"{% endif %}>
+          {{ choice.tag }}
+          {% if field.name == "color" %}
+            <span class="swatch-color" style="background: {{ choice.data.value }}"></span>
+          {% else %}
+            <span class="chip-dot" style="background: {{ choice.data.value.instance.color }}"></span>
+            {{ choice.choice_label }}
+          {% endif %}
+        </label>
+      {% endfor %}
+    </div>
+    {% if field.name == "category" %}
+      <a class="muted-link manage-link" href="{% url 'user_settings' %}#categories">{% translate "Manage categories" %} →</a>
+    {% endif %}
+    {% if field.help_text %}<small class="help">{{ field.help_text }}</small>{% endif %}
+    {% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}
+  </div>
+{% elif field.widget_type == "clearablefile" or field.widget_type == "file" %}
+  {# File upload: a big drop area. The real file input covers it (invisible), so clicking #}
+  {# anywhere opens the file picker, and drag & drop works even without JavaScript. #}
+  <div class="field field-{{ field.name }}{% if field.errors %} has-error{% endif %}">
+    <span class="field-label" id="{{ field.auto_id }}-label">{{ field.label|capfirst }}</span>
+    <div class="dropzone" data-dropzone
+         data-wrong-type="{% translate 'Only CSV or PDF files.' %}">
+      {{ field }}
+      <svg class="dropzone-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>
+        <path d="M12 17v-6m-2.5 2.5L12 11l2.5 2.5"/>
+      </svg>
+      <span class="dropzone-empty">
+        <strong class="dropzone-title">{% translate "Drag your statement here" %}</strong>
+        <span class="dropzone-sub">{% translate "or click to choose a file" %}</span>
+      </span>
+      <span class="dropzone-dragging">
+        <strong class="dropzone-title">{% translate "Drop it to upload" %}</strong>
+      </span>
+      <span class="dropzone-chosen">
+        <strong class="dropzone-title" data-file-name></strong>
+        <span class="dropzone-sub"><span data-file-size></span> · {% translate "click or drop to change" %}</span>
+      </span>
+      <span class="dropzone-error" data-file-error hidden></span>
+    </div>
+    {% if field.help_text %}<small class="help">{{ field.help_text }}</small>{% endif %}
+    {% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}
+  </div>
+{% else %}
+  <div class="field field-{{ field.name }}{% if field.errors %} has-error{% endif %}">
+    <label for="{{ field.id_for_label }}">{{ field.label|capfirst }}</label>
+    {{ field }}
+    {% if field.help_text %}<small class="help">{{ field.help_text }}</small>{% endif %}
+    {% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}
+  </div>
+{% endif %}

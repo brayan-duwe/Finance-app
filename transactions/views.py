@@ -7,8 +7,8 @@ from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
-from django.db.models import Sum
-from django.http import Http404
+from django.db.models import Count, Sum
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import translation
@@ -20,9 +20,13 @@ from django.views.decorators.http import require_POST
 from .categorize import guess_category
 from .charts import build_donut
 from .forms import (
-    BillMonthForm, ExpenseForm, ImportRowFormSet, IncomeForm, ProfileForm, StatementUploadForm,
+    BillMonthForm, CategoryForm, ExpenseForm, ImportRowFormSet, IncomeForm, ProfileForm,
+    StatementUploadForm,
 )
-from .models import Category, Expense, Frequency, Income, add_months, get_profile
+from .models import (
+    OTHER, PALETTE, Category, DefaultExpenseCategory, DefaultIncomeCategory, Expense, Frequency,
+    Income, Kind, add_months, get_category, get_profile,
+)
 from .parsers import StatementError, parse_statement
 from .refunds import pair_refunds
 
@@ -59,7 +63,73 @@ def user_settings(request):
         response = redirect("user_settings")
         response.set_cookie(settings.LANGUAGE_COOKIE_NAME, profile.language, max_age=365 * 24 * 3600)
         return response
-    return render(request, "transactions/settings.html", {"form": form})
+
+    categories = Category.objects.filter(user=request.user).annotate(
+        uses=Count("expenses", distinct=True) + Count("incomes", distinct=True)
+    )
+    return render(request, "transactions/settings.html", {
+        "form": form,
+        "category_groups": [
+            (Kind.EXPENSE, Kind.EXPENSE.label, [c for c in categories if c.kind == Kind.EXPENSE]),
+            (Kind.INCOME, Kind.INCOME.label, [c for c in categories if c.kind == Kind.INCOME]),
+        ],
+    })
+
+
+# --- Categories ------------------------------------------------------------
+
+
+def _settings_url():
+    return f"{reverse('user_settings')}#categories"
+
+
+@login_required
+def category_form(request, pk=None):
+    """Create a category (?kind=expense|income) or edit one, including deleting it."""
+    if pk:
+        category = get_object_or_404(Category, pk=pk, user=request.user)
+        kind = category.kind
+    else:
+        category = None
+        kind = request.GET.get("kind") or request.POST.get("kind")
+        if kind not in Kind.values:
+            raise Http404
+
+    # A new category gets the first colour that isn't used yet.
+    used = set(Category.objects.filter(user=request.user, kind=kind).values_list("color", flat=True))
+    initial = {} if category else {"color": next((c for c in PALETTE if c not in used), PALETTE[0])}
+    form = CategoryForm(request.POST or None, instance=category, initial=initial, user=request.user, kind=kind)
+    if request.method == "POST" and form.is_valid():
+        saved = form.save()
+        messages.success(request, _("Saved “%(name)s”.") % {"name": saved.label})
+        return _done(request, _settings_url())
+
+    title = _("Edit category") if category else (
+        _("New expense category") if kind == Kind.EXPENSE else _("New income category")
+    )
+    uses = 0
+    if category:
+        uses = category.expenses.count() + category.incomes.count()
+    return _render_form(request, "transactions/category_form.html", {
+        "form": form, "title": title, "category": category, "kind": kind, "uses": uses,
+    })
+
+
+@require_POST
+@login_required
+def category_delete(request, pk):
+    """Delete a category. Its expenses or incomes move to the "Other" category."""
+    category = get_object_or_404(Category, pk=pk, user=request.user)
+    if category.is_other:
+        messages.error(request, _("The “Other” category can't be deleted."))
+        return _done(request, _settings_url())
+    other = get_category(request.user, category.kind, OTHER)
+    category.expenses.update(category=other)
+    category.incomes.update(category=other)
+    name = category.label
+    category.delete()
+    messages.success(request, _("Deleted “%(name)s”.") % {"name": name})
+    return _done(request, _settings_url())
 
 
 # --- Dashboard -------------------------------------------------------------
@@ -88,12 +158,8 @@ def _safe_next(request, url):
 @login_required
 def dashboard(request):
     month = _selected_month(request)
-    incomes = Income.objects.filter(user=request.user).for_month(month.year, month.month)
-    expenses = Expense.objects.filter(user=request.user).for_month(month.year, month.month)
-
-    income_total = incomes.aggregate(total=Sum("amount"))["total"] or Decimal("0")
-    by_category = list(expenses.values("category").annotate(total=Sum("amount")).order_by("-total"))
-    chart = build_donut(income_total, by_category)
+    incomes = Income.objects.filter(user=request.user).for_month(month.year, month.month).select_related("category")
+    expenses = Expense.objects.filter(user=request.user).for_month(month.year, month.month).select_related("category")
 
     entries = list(chain(incomes, expenses))
     for entry in entries:
@@ -101,7 +167,42 @@ def dashboard(request):
         entry.installment_now = entry.installment_in_month(month.year, month.month)
     entries.sort(key=lambda e: (e.shown_date, e.created_at), reverse=True)
 
+    # Each chart category also lists its expenses (shown when you tap it in the legend).
+    items_by_category = {}
+    for entry in entries:
+        if entry.kind == "expense":
+            items_by_category.setdefault(entry.category_id, []).append(entry)
+
+    income_total = incomes.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+    totals = list(expenses.values("category").annotate(total=Sum("amount")).order_by("-total"))
+    categories = Category.objects.in_bulk([row["category"] for row in totals])
+    by_category = [
+        {
+            "category": categories[row["category"]],
+            "total": row["total"],
+            "items": sorted(items_by_category.get(row["category"], []), key=lambda e: e.amount, reverse=True),
+        }
+        for row in totals
+    ]
+    chart = build_donut(income_total, by_category)
+
+    # Transactions filter: ?type=expense or ?type=income. Every entry is still sent,
+    # the others just hidden, so the filter can switch instantly in the browser.
+    active_filter = request.GET.get("type")
+    if active_filter not in ("expense", "income"):
+        active_filter = "all"
+    expense_count = sum(1 for e in entries if e.kind == "expense")
+    income_count = len(entries) - expense_count
+
     return render(request, "transactions/dashboard.html", {
+        "active_filter": active_filter,
+        "filters": [
+            ("all", _("All"), len(entries)),
+            ("expense", _("Expenses"), expense_count),
+            ("income", _("Income"), income_count),
+        ],
+        "expense_count": expense_count,
+        "income_count": income_count,
         "month": month,
         "prev_month": add_months(month, -1),
         "next_month": add_months(month, 1),
@@ -115,26 +216,48 @@ def dashboard(request):
 # --- Add / view / edit / delete --------------------------------------------
 
 
+# Forms can open in the sliding panel on the dashboard. The panel's JavaScript
+# sends an "X-Panel: 1" header: we then return only the form (no page around it),
+# and after saving we answer with JSON saying where to go, instead of a redirect.
+
+
+def _is_panel(request):
+    return request.headers.get("X-Panel") == "1"
+
+
+def _render_form(request, template, context):
+    context["base_template"] = "panel.html" if _is_panel(request) else "base.html"
+    return render(request, template, context)
+
+
+def _done(request, url):
+    if _is_panel(request):
+        return JsonResponse({"redirect": url})
+    return redirect(url)
+
+
 def _entry_form(request, form_class, title, initial):
-    form = form_class(request.POST or None, initial={"date": date.today(), **initial})
+    form = form_class(request.POST or None, initial={"date": date.today(), **initial}, user=request.user)
     if request.method == "POST" and form.is_valid():
         entry = form.save(commit=False)
         entry.user = request.user
         entry.save()
         messages.success(request, _("Added “%(name)s”.") % {"name": entry.description})
-        return redirect(_dashboard_url(entry.date if not entry.is_recurring else date.today()))
-    return render(request, "transactions/entry_form.html", {"form": form, "title": title})
+        return _done(request, _dashboard_url(entry.date if not entry.is_recurring else date.today()))
+    return _render_form(request, "transactions/entry_form.html", {"form": form, "title": title})
 
 
 @login_required
 def add_expense(request):
-    return _entry_form(request, ExpenseForm, _("Add an expense"), {})
+    initial = {"category": get_category(request.user, Kind.EXPENSE, OTHER)}
+    return _entry_form(request, ExpenseForm, _("Add an expense"), initial)
 
 
 @login_required
 def add_income(request):
-    has_income = Income.objects.filter(user=request.user).exists()
-    initial = {} if has_income else {"description": _("Salary"), "frequency": Frequency.MONTHLY}
+    initial = {"category": get_category(request.user, Kind.INCOME, DefaultIncomeCategory.SALARY)}
+    if not Income.objects.filter(user=request.user).exists():
+        initial.update(description=_("Salary"), frequency=Frequency.MONTHLY)
     return _entry_form(request, IncomeForm, _("Add an income"), initial)
 
 
@@ -145,7 +268,7 @@ def entry_detail(request, kind, pk):
         raise Http404
     entry = get_object_or_404(ENTRY_MODELS[kind], pk=pk, user=request.user)
     form_class = ExpenseForm if kind == "expense" else IncomeForm
-    form = form_class(request.POST or None, instance=entry)
+    form = form_class(request.POST or None, instance=entry, user=request.user)
     if request.method == "POST" and form.is_valid():
         if kind == "expense" and not entry.imported:
             entry.first_installment_month = None  # recalculated from the (maybe changed) date
@@ -218,8 +341,8 @@ def import_statement(request):
                         for r in rows
                     ],
                 }
-                return redirect("import_review")
-    return render(request, "transactions/import_upload.html", {"form": form})
+                return _done(request, reverse("import_review"))
+    return _render_form(request, "transactions/import_upload.html", {"form": form})
 
 
 def _review_rows(user, rows):
@@ -251,18 +374,24 @@ def _review_rows(user, rows):
         if original:
             recurring.add((amount, key(original)))
 
+    # The guesser returns default keys ("food"); map them to the user's own categories.
+    # If the user deleted that category, the expense goes to "Other".
+    user_categories = Category.objects.filter(user=user, kind=Kind.EXPENSE)
+    by_key = {c.system_key: c.pk for c in user_categories if c.system_key}
+
     initial = []
     for r in rows:
         row_date, amount = date.fromisoformat(r["date"]), Decimal(r["amount"])
         names = {key(r["original"]), key(r["description"])}
-        category = guess_category(r["description"], r.get("bank_category", ""))
+        guessed = guess_category(r["description"], r.get("bank_category", ""))
+        category = by_key.get(guessed) or by_key.get(OTHER)
         duplicate = any((row_date, amount, n) in already_added for n in names)
         counted_as_recurring = any((amount, n) in recurring for n in names)
         is_credit = amount <= 0
 
         if r.get("installment_total"):
             frequency = Frequency.INSTALLMENTS
-        elif category == Category.SUBSCRIPTIONS:
+        elif guessed == DefaultExpenseCategory.SUBSCRIPTIONS and guessed in by_key:
             frequency = Frequency.MONTHLY
         else:
             frequency = Frequency.ONCE
@@ -295,9 +424,10 @@ def import_review(request):
 
     initial = _review_rows(request.user, data["rows"])
     month_initial = {"bill_month": date.fromisoformat(data["bill_month"])}
+    row_kwargs = {"categories": Category.objects.filter(user=request.user, kind=Kind.EXPENSE)}
 
     if request.method == "POST":
-        formset = ImportRowFormSet(request.POST, initial=initial)
+        formset = ImportRowFormSet(request.POST, initial=initial, form_kwargs=row_kwargs)
         month_form = BillMonthForm(request.POST, initial=month_initial)
         if formset.is_valid() and month_form.is_valid():
             bill_month = month_form.cleaned_data["bill_month"].replace(day=1)
@@ -333,7 +463,7 @@ def import_review(request):
             ) % {"count": count, "file": data["filename"]})
             return redirect(_dashboard_url(bill_month))
     else:
-        formset = ImportRowFormSet(initial=initial)
+        formset = ImportRowFormSet(initial=initial, form_kwargs=row_kwargs)
         month_form = BillMonthForm(initial=month_initial)
 
     return render(request, "transactions/import_review.html", {

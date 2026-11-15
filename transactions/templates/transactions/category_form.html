@@ -1,0 +1,38 @@
+{% extends base_template|default:"base.html" %}
+{% load i18n %}
+{% block title %}{{ title }} · Finances{% endblock %}
+
+{% block content %}
+<section class="card narrow">
+  <h1>{{ title }}</h1>
+  <form method="post" action="{{ request.get_full_path }}" novalidate>
+    {% csrf_token %}
+    <input type="hidden" name="kind" value="{{ kind }}">
+    {% for error in form.non_field_errors %}<p class="error">{{ error }}</p>{% endfor %}
+    {% for field in form %}{% include "transactions/_field.html" %}{% endfor %}
+
+    <div class="form-actions">
+      {% if category and not category.is_other %}
+        <button type="submit" form="delete-category" class="btn danger">{% translate "Delete" %}</button>
+        <span class="spacer"></span>
+      {% endif %}
+      <a class="btn" href="{% url 'user_settings' %}#categories" data-panel-close>{% translate "Cancel" %}</a>
+      <button type="submit" class="btn primary">{% translate "Save" %}</button>
+    </div>
+  </form>
+
+  {% if category and not category.is_other %}
+    <p class="help delete-note">
+      {% if uses %}
+        {% blocktranslate count counter=uses %}Deleting it moves its {{ counter }} item to “Other”.{% plural %}Deleting it moves its {{ counter }} items to “Other”.{% endblocktranslate %}
+      {% endif %}
+    </p>
+    <form id="delete-category" method="post" action="{% url 'category_delete' category.pk %}"
+          onsubmit="return confirm('{% translate "Delete this category?" as msg %}{{ msg|escapejs }}')">
+      {% csrf_token %}
+    </form>
+  {% elif category %}
+    <p class="help">{% translate "“Other” can't be deleted: items from deleted categories move here." %}</p>
+  {% endif %}
+</section>
+{% endblock %}

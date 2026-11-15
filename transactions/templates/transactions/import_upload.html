@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends base_template|default:"base.html" %}
 {% load i18n %}
 {% block title %}{% translate "Import statement" %} · Finances{% endblock %}
 
@@ -6,11 +6,11 @@
 <section class="card narrow">
   <h1>{% translate "Import a credit card statement" %}</h1>
   <p class="muted">{% translate "Upload the file from your bank. You'll review every expense before anything is saved." %}</p>
-  <form method="post" enctype="multipart/form-data" novalidate>
+  <form method="post" action="{{ request.path }}" enctype="multipart/form-data" novalidate>
     {% csrf_token %}
     {% for field in form %}{% include "transactions/_field.html" %}{% endfor %}
     <div class="form-actions">
-      <a class="btn" href="{% url 'dashboard' %}">{% translate "Cancel" %}</a>
+      <a class="btn" href="{% url 'dashboard' %}" data-panel-close>{% translate "Cancel" %}</a>
       <button type="submit" class="btn primary">{% translate "Read statement" %}</button>
     </div>
   </form>

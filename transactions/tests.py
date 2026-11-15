@@ -8,10 +8,18 @@ from django.urls import reverse
 
 from .categorize import guess_category
 from .currencies import format_money
-from .models import Category, Expense, Frequency, Income, get_profile
+from .models import Category as CategoryModel
+from .models import DefaultExpenseCategory as Category
+from .models import Expense, Frequency, Income, ensure_default_categories, get_category, get_profile
 from .parsers import parse_amount, parse_csv, parse_date, parse_installment, parse_line
 
 TODAY = date(2026, 11, 14)
+
+
+def cat(user, key, kind="expense"):
+    """The user's category for a default key, e.g. cat(user, "food")."""
+    ensure_default_categories(user)
+    return get_category(user, kind, key)
 
 # The layout of a real Brazilian card statement: two amount columns (US$ and R$),
 # an exchange-rate column, the bank's category, and installments ("Parcela").
@@ -161,9 +169,9 @@ class DashboardTests(TestCase):
 
     def test_chart_with_salary_and_expenses(self):
         Income.objects.create(user=self.user, description="Salary", amount=Decimal("5000"), date=date(2026, 1, 5), frequency=Frequency.MONTHLY)
-        Expense.objects.create(user=self.user, description="Rent", amount=Decimal("1500"), date=date(2026, 1, 1), frequency=Frequency.MONTHLY, category=Category.HOUSING)
-        Expense.objects.create(user=self.user, description="Dinner", amount=Decimal("100"), date=date(2026, 11, 3), category=Category.FOOD)
-        Expense.objects.create(user=self.user, description="Old dinner", amount=Decimal("80"), date=date(2026, 10, 3), category=Category.FOOD)
+        Expense.objects.create(user=self.user, description="Rent", amount=Decimal("1500"), date=date(2026, 1, 1), frequency=Frequency.MONTHLY, category=cat(self.user, "housing"))
+        Expense.objects.create(user=self.user, description="Dinner", amount=Decimal("100"), date=date(2026, 11, 3), category=cat(self.user, "food"))
+        Expense.objects.create(user=self.user, description="Old dinner", amount=Decimal("80"), date=date(2026, 10, 3), category=cat(self.user, "food"))
 
         response = self.client.get(reverse("dashboard"), {"month": "2026-11"})
         chart = response.context["chart"]
@@ -187,6 +195,7 @@ class DashboardTests(TestCase):
     def test_add_income_and_delete(self):
         response = self.client.post(reverse("add_income"), {
             "description": "Salary", "amount": "4200.00", "date": "2026-11-01", "frequency": "monthly",
+            "category": cat(self.user, "salary", "income").pk,
         })
         self.assertEqual(response.status_code, 302)
         income = Income.objects.get(user=self.user)
@@ -219,12 +228,12 @@ class ImportFlowTests(TestCase):
         self.assertContains(response, "Already counted as recurring")
 
         post = review_post(response)
-        post["form-1-category"] = "other"  # the user changed a category
+        post["form-1-category"] = str(cat(self.user, "other").pk)  # the user changed a category
 
         response = self.client.post(reverse("import_review"), post)
         self.assertEqual(response.status_code, 302)
         added = Expense.objects.filter(user=self.user, imported=True).order_by("date")
-        self.assertEqual([(e.description, e.category) for e in added], [("Netflix", "subscriptions"), ("Uber *Trip", "other")])
+        self.assertEqual([(e.description, e.category.system_key) for e in added], [("Netflix", "subscriptions"), ("Uber *Trip", "other")])
         self.assertNotIn("statement_import", self.client.session)
 
     def test_unreadable_file_shows_an_error(self):
@@ -339,14 +348,14 @@ class InstallmentTests(TestCase):
     def test_add_installments_by_hand(self):
         self.client.post(reverse("add_expense"), {
             "description": "Laptop", "amount": "500.00", "date": "2026-11-02",
-            "category": "shopping", "frequency": "installments", "installment_total": "10",
+            "category": cat(self.user, "shopping").pk, "frequency": "installments", "installment_total": "10",
         })
         laptop = Expense.objects.get(description="Laptop")
         self.assertEqual(laptop.last_installment_month, date(2027, 8, 1))
 
         response = self.client.post(reverse("add_expense"), {
             "description": "Phone", "amount": "100.00", "date": "2026-11-02",
-            "category": "shopping", "frequency": "installments", "installment_total": "",
+            "category": cat(self.user, "shopping").pk, "frequency": "installments", "installment_total": "",
         })
         self.assertContains(response, "How many installments in total?")
 
@@ -364,7 +373,7 @@ class DetailAndSettingsTests(TestCase):
         url = reverse("entry_detail", args=["expense", expense.pk])
         self.client.post(url, {
             "description": "Claude", "amount": "116.22", "date": "2026-10-20",
-            "category": "subscriptions", "frequency": "monthly", "installment_total": "",
+            "category": cat(self.user, "subscriptions").pk, "frequency": "monthly", "installment_total": "",
         })
         expense.refresh_from_db()
         self.assertEqual(expense.description, "Claude")
@@ -441,3 +450,238 @@ class RefundTests(TestCase):
         rows = {f.initial["description"]: f.initial for f in response.context["formset"].forms}
         self.assertTrue(rows["Uber *Trip"]["include"])
         self.assertFalse(rows["Loja Renner"]["include"])
+
+
+class PanelAndCategoryTests(TestCase):
+    """The '+ New' menu opens forms in a sliding panel (requests with the X-Panel header)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("alex", password="a-long-password-123")
+        self.client.force_login(self.user)
+
+    def test_header_has_the_new_menu(self):
+        response = self.client.get(reverse("dashboard"))
+        self.assertContains(response, 'id="new-menu"')
+        for name in ["import_statement", "add_expense", "add_income"]:
+            self.assertContains(response, f'href="{reverse(name)}" data-panel')
+
+    def test_panel_gets_only_the_form(self):
+        response = self.client.get(reverse("add_expense"), headers={"X-Panel": "1"})
+        self.assertNotContains(response, "<html")
+        self.assertContains(response, 'class="chips"')
+        self.assertContains(response, "Food &amp; groceries")
+
+        full_page = self.client.get(reverse("add_expense"))
+        self.assertContains(full_page, "<html")
+
+    def test_panel_save_answers_with_where_to_go(self):
+        response = self.client.post(reverse("add_income"), {
+            "description": "Freelance site", "amount": "800.00", "date": "2026-11-03",
+            "frequency": "once", "category": cat(self.user, "freelance", "income").pk,
+        }, headers={"X-Panel": "1"})
+        self.assertEqual(response.json(), {"redirect": "/?month=2026-11"})
+        self.assertEqual(Income.objects.get().category.system_key, "freelance")
+
+    def test_panel_errors_come_back_as_the_form(self):
+        response = self.client.post(reverse("add_expense"), {"description": ""}, headers={"X-Panel": "1"})
+        self.assertEqual(response["Content-Type"], "text/html; charset=utf-8")
+        self.assertContains(response, 'class="error"')
+
+    def test_income_form_has_income_categories(self):
+        response = self.client.get(reverse("add_income"))
+        self.assertContains(response, "Investments")
+        self.assertContains(response, "Freelance")
+        self.assertNotContains(response, "Food &amp; groceries")
+
+
+class CategorySettingsTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("alex", password="a-long-password-123")
+        self.client.force_login(self.user)
+        ensure_default_categories(self.user)
+
+    def test_settings_lists_both_kinds(self):
+        response = self.client.get(reverse("user_settings"))
+        self.assertContains(response, "Food &amp; groceries")
+        self.assertContains(response, "Investments")
+        self.assertContains(response, f'href="{reverse("category_new")}?kind=expense" data-panel')
+
+    def test_create_category_and_use_it(self):
+        self.client.post(f'{reverse("category_new")}?kind=expense', {"name": "Pets", "color": "#c9755b"})
+        pets = CategoryModel.objects.get(user=self.user, name="Pets")
+        self.assertEqual((pets.kind, pets.color), ("expense", "#c9755b"))
+
+        response = self.client.get(reverse("add_expense"))
+        self.assertContains(response, "Pets")
+        self.assertContains(response, "Manage categories")
+
+        self.client.post(reverse("add_expense"), {
+            "description": "Vet", "amount": "150.00", "date": "2026-11-05",
+            "category": pets.pk, "frequency": "once",
+        })
+        Income.objects.create(user=self.user, description="Salary", amount=Decimal("1000"), date=date(2026, 11, 1))
+        chart = self.client.get(reverse("dashboard"), {"month": "2026-11"}).context["chart"]
+        self.assertEqual([(s["label"], s["color"]) for s in chart["segments"]], [("Pets", "#c9755b")])
+
+    def test_duplicate_names_are_rejected(self):
+        response = self.client.post(f'{reverse("category_new")}?kind=expense', {"name": "health", "color": "#c9755b"})
+        self.assertContains(response, "You already have a category with this name.")
+        # The same name is fine for the other kind.
+        self.client.post(f'{reverse("category_new")}?kind=income', {"name": "Health", "color": "#c9755b"})
+        self.assertTrue(CategoryModel.objects.filter(user=self.user, kind="income", name="Health").exists())
+
+    def test_rename_default_category(self):
+        food = cat(self.user, "food")
+        self.client.post(reverse("category_edit", args=[food.pk]), {"name": "Comida", "color": food.color})
+        food.refresh_from_db()
+        self.assertEqual(food.label, "Comida")
+        self.assertEqual(food.system_key, "food")  # still used by the import's guesses
+
+    def test_saving_a_default_without_renaming_keeps_it_translated(self):
+        food = cat(self.user, "food")
+        self.client.post(reverse("category_edit", args=[food.pk]), {"name": "Food & groceries", "color": "#c9755b"})
+        food.refresh_from_db()
+        self.assertEqual(food.name, "")
+        self.assertEqual(food.color, "#c9755b")
+
+    def test_delete_moves_items_to_other(self):
+        food = cat(self.user, "food")
+        dinner = Expense.objects.create(user=self.user, description="Dinner", amount=Decimal("80"), date=TODAY, category=food)
+        response = self.client.get(reverse("category_edit", args=[food.pk]))
+        self.assertContains(response, "moves its 1 item to")
+
+        self.client.post(reverse("category_delete", args=[food.pk]))
+        dinner.refresh_from_db()
+        self.assertEqual(dinner.category.system_key, "other")
+        self.assertFalse(CategoryModel.objects.filter(pk=food.pk).exists())
+
+    def test_other_cannot_be_deleted(self):
+        other = cat(self.user, "other")
+        self.client.post(reverse("category_delete", args=[other.pk]))
+        self.assertTrue(CategoryModel.objects.filter(pk=other.pk).exists())
+
+    def test_cannot_touch_someone_elses_category(self):
+        stranger = User.objects.create_user("sam", password="a-long-password-123")
+        theirs = cat(stranger, "food")
+        self.assertEqual(self.client.get(reverse("category_edit", args=[theirs.pk])).status_code, 404)
+        self.assertEqual(self.client.post(reverse("category_delete", args=[theirs.pk])).status_code, 404)
+        response = self.client.post(reverse("add_expense"), {
+            "description": "Sneaky", "amount": "1.00", "date": "2026-11-05", "category": theirs.pk, "frequency": "once",
+        })
+        self.assertContains(response, "Select a valid choice")
+
+    def test_import_uses_other_when_the_guessed_category_was_deleted(self):
+        self.client.post(reverse("category_delete", args=[cat(self.user, "subscriptions").pk]))
+        upload = SimpleUploadedFile("s.csv", b"date,title,amount\n2026-11-01,Netflix,39.90\n", content_type="text/csv")
+        self.client.post(reverse("import_statement"), {"file": upload, "date_order": "dmy"})
+        row = self.client.get(reverse("import_review")).context["formset"].forms[0].initial
+        self.assertEqual(row["category"], cat(self.user, "other").pk)
+        self.assertEqual(row["frequency"], "once")
+
+    def test_new_users_get_default_categories(self):
+        newcomer = User.objects.create_user("new", password="a-long-password-123")
+        self.client.force_login(newcomer)
+        self.client.get(reverse("dashboard"))
+        self.assertEqual(CategoryModel.objects.filter(user=newcomer).count(), 15)
+
+
+class UploadPageTests(TestCase):
+    def test_upload_field_is_a_drop_area(self):
+        user = User.objects.create_user("alex", password="a-long-password-123")
+        self.client.force_login(user)
+        response = self.client.get(reverse("import_statement"), headers={"X-Panel": "1"})
+        self.assertContains(response, "data-dropzone")
+        self.assertContains(response, 'class="dropzone-input"')
+        self.assertContains(response, "Drag your statement here")
+
+
+class DonutCenterAndFilterTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("alex", password="a-long-password-123")
+        self.client.force_login(self.user)
+        Income.objects.create(user=self.user, description="Salary", amount=Decimal("2200"), date=date(2026, 1, 5), frequency=Frequency.MONTHLY)
+        Expense.objects.create(user=self.user, description="Rent", amount=Decimal("1245.96"), date=date(2026, 11, 3))
+
+    def dashboard(self, **params):
+        return self.client.get(reverse("dashboard"), {"month": "2026-11", **params})
+
+    def test_center_shows_what_was_spent(self):
+        response = self.dashboard()
+        self.assertContains(response, '<span class="donut-amount">R$ 1.245,96</span>', html=True)
+        self.assertContains(response, "of R$ 2.200,00")
+        self.assertNotContains(response, "spent ·")
+        self.assertContains(response, "R$ 954,04")  # "Left" is still in the legend
+
+    def test_legend_rows_carry_the_details_for_the_centre(self):
+        response = self.dashboard()
+        self.assertContains(response, 'data-chart')
+        self.assertContains(response, 'class="seg" data-index="0"')
+        self.assertContains(response, 'data-detail="57% of income · 100% of spending"')
+        self.assertContains(response, 'data-index="left"')
+        self.assertContains(response, 'data-detail="43% of income"')
+
+        self.client.post(reverse("user_settings"), {"language": "pt-br", "currency": "BRL"})
+        self.assertContains(self.dashboard(), 'data-detail="57% da renda · 100% dos gastos"')
+
+    def test_center_when_over_budget(self):
+        Expense.objects.create(user=self.user, description="Trip", amount=Decimal("1254.04"), date=date(2026, 11, 9))
+        response = self.dashboard()
+        self.assertContains(response, '<span class="donut-amount negative">R$ 2.500,00</span>', html=True)
+        self.assertContains(response, "R$ 300,00 over budget")
+
+    def test_filter_counts_and_hidden_entries(self):
+        response = self.dashboard(type="income")
+        self.assertEqual(response.context["filters"], [("all", "All", 2), ("expense", "Expenses", 1), ("income", "Income", 1)])
+        self.assertContains(response, '<li class="entry" data-kind="expense" hidden>')
+        self.assertContains(response, '<li class="entry" data-kind="income">')
+        self.assertContains(response, 'data-filter="income" aria-current="true"')
+        # Month arrows keep the filter.
+        self.assertContains(response, "?month=2026-10&amp;type=income")
+
+    def test_filter_empty_message(self):
+        Income.objects.all().delete()
+        response = self.dashboard(type="income")
+        self.assertContains(response, '<p class="muted" data-empty-for="income">No income this month.</p>', html=True)
+
+    def test_unknown_filter_means_all(self):
+        response = self.dashboard(type="nonsense")
+        self.assertEqual(response.context["active_filter"], "all")
+        self.assertContains(response, '<li class="entry" data-kind="expense">')
+        self.assertContains(response, '<li class="entry" data-kind="income">')
+
+
+class LegendListTests(TestCase):
+    def test_each_category_lists_its_expenses_biggest_first(self):
+        user = User.objects.create_user("alex", password="a-long-password-123")
+        self.client.force_login(user)
+        Income.objects.create(user=user, description="Salary", amount=Decimal("3000"), date=date(2026, 11, 1))
+        food = cat(user, "food")
+        Expense.objects.create(user=user, description="Bakery", amount=Decimal("12.50"), date=date(2026, 11, 2), category=food)
+        Expense.objects.create(user=user, description="Supermarket", amount=Decimal("230.00"), date=date(2026, 11, 4), category=food)
+        Expense.objects.create(user=user, description="Gym", amount=Decimal("99.00"), date=date(2026, 11, 5), category=cat(user, "health"))
+
+        response = self.client.get(reverse("dashboard"), {"month": "2026-11"})
+        segments = response.context["chart"]["segments"]
+        self.assertEqual([s["label"] for s in segments], ["Food & groceries", "Health"])
+        self.assertEqual([e.description for e in segments[0]["items"]], ["Supermarket", "Bakery"])
+        self.assertEqual([e.description for e in segments[1]["items"]], ["Gym"])
+        self.assertContains(response, 'aria-controls="legend-items-0"')
+        self.assertContains(response, 'data-details-for="0" inert')
+
+
+class SeeAllTests(TestCase):
+    def test_only_five_shown_until_see_all(self):
+        user = User.objects.create_user("alex", password="a-long-password-123")
+        self.client.force_login(user)
+        Income.objects.create(user=user, description="Salary", amount=Decimal("3000"), date=date(2026, 11, 1))
+        food = cat(user, "food")
+        for i in range(7):
+            Expense.objects.create(user=user, description=f"Meal {i}", amount=Decimal(10 + i), date=date(2026, 11, 2), category=food)
+
+        response = self.client.get(reverse("dashboard"), {"month": "2026-11"})
+        self.assertContains(response, 'class="legend-entries is-collapsed"')
+        self.assertContains(response, 'class="legend-entry-extra"', count=2)
+        self.assertContains(response, "See all (7)")
+
+        self.client.post(reverse("user_settings"), {"language": "pt-br", "currency": "BRL"})
+        self.assertContains(self.client.get(reverse("dashboard"), {"month": "2026-11"}), "Ver todas (7)")

@@ -1,16 +1,43 @@
-{% load static i18n %}{% get_current_language as LANGUAGE_CODE %}<!doctype html>
+{% load static i18n assets %}{% get_current_language as LANGUAGE_CODE %}<!doctype html>
 <html lang="{{ LANGUAGE_CODE }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Finances{% endblock %}</title>
-  <link rel="stylesheet" href="{% static 'transactions/style.css' %}">
+  <link rel="stylesheet" href="{% asset 'transactions/style.css' %}">
+  <script src="{% asset 'transactions/app.js' %}" defer></script>
 </head>
 <body class="{% block page_class %}{% endblock %}">
   <header class="topbar">
     <a class="brand" href="{% url 'dashboard' %}">Finances</a>
     {% if user.is_authenticated %}
       <nav class="nav">
+        <div class="new-menu">
+          <button type="button" class="menu-trigger primary new-button" data-menu-trigger
+                  aria-haspopup="menu" aria-expanded="false" aria-controls="new-menu">
+            <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M8 2.5v11M2.5 8h11"/></svg>
+            <span>{% translate "Add" %}</span>
+            <svg class="caret" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4.5 6.5 8 10l3.5-3.5z"/></svg>
+          </button>
+          <div id="new-menu" class="menu" role="menu" hidden>
+            <a role="menuitem" href="{% url 'import_statement' %}" data-panel>
+              {# file with an arrow up #}
+              <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 17v-6m-2.5 2.5L12 11l2.5 2.5"/></svg>
+              {% translate "Import statement" %}
+            </a>
+            <div class="menu-separator" role="separator"></div>
+            <a role="menuitem" href="{% url 'add_expense' %}" data-panel>
+              {# arrow leaving a circle: money out #}
+              <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v9m-3.5-3.5L12 16.5l3.5-3.5"/></svg>
+              {% translate "Expense" %}
+            </a>
+            <a role="menuitem" href="{% url 'add_income' %}" data-panel>
+              {# arrow into a circle: money in #}
+              <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16.5v-9m-3.5 3.5L12 7.5l3.5 3.5"/></svg>
+              {% translate "Income" %}
+            </a>
+          </div>
+        </div>
         <a href="{% url 'user_settings' %}" class="link">{% translate "Settings" %}</a>
       </nav>
     {% else %}
@@ -34,5 +61,18 @@
     {% endif %}
     {% block content %}{% endblock %}
   </main>
+
+  {% if user.is_authenticated %}
+    {# On phones the "+ New" button moves to the bottom corner #}
+    <button type="button" class="fab" data-menu-trigger aria-haspopup="menu" aria-expanded="false"
+            aria-controls="new-menu" aria-label="{% translate 'Add' %}">+</button>
+
+    {# The sliding panel where forms open #}
+    <div id="panel-backdrop" class="panel-backdrop" hidden></div>
+    <aside id="panel" class="panel" role="dialog" aria-modal="true" aria-label="{% translate 'New' %}" tabindex="-1" hidden>
+      <button type="button" class="icon-btn panel-close" data-panel-close aria-label="{% translate 'Close' %}">×</button>
+      <div id="panel-body"></div>
+    </aside>
+  {% endif %}
 </body>
 </html>
