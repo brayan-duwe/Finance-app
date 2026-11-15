@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ title }} · Finances{% endblock %}
+
+{% block content %}
+<section class="card narrow">
+  <h1>{{ title }}</h1>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% for error in form.non_field_errors %}<p class="error">{{ error }}</p>{% endfor %}
+    {% for field in form %}{% include "transactions/_field.html" %}{% endfor %}
+    <div class="form-actions">
+      <a class="btn" href="{% url 'dashboard' %}">{% translate "Cancel" %}</a>
+      <button type="submit" class="btn primary">{% translate "Save" %}</button>
+    </div>
+  </form>
+</section>
+{% include "transactions/_installments_toggle.html" %}
+{% endblock %}

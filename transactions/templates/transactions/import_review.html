@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% translate "Review expenses" %} · Finances{% endblock %}
+{% block page_class %}page-wide{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h1>{% translate "Review expenses" %}</h1>
+  <p class="muted">
+    {% blocktranslate count counter=formset|length with file=filename %}Found {{ counter }} transaction in <strong>{{ file }}</strong>.{% plural %}Found {{ counter }} transactions in <strong>{{ file }}</strong>.{% endblocktranslate %}
+    {% translate "Uncheck anything you don't want, fix names and categories, and mark bills that repeat. Payments, duplicates, and refunds together with the charges they cancel start unchecked." %}
+  </p>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}<p class="error">{{ formset.non_form_errors|join:" " }}</p>{% endif %}
+
+    <div class="bill-month">
+      {% with field=month_form.bill_month %}{% include "transactions/_field.html" %}{% endwith %}
+    </div>
+
+    <table class="review">
+      <thead>
+        <tr>
+          <th class="col-check"><input type="checkbox" id="toggle-all" aria-label="{% translate 'Select all' %}" checked></th>
+          <th class="col-date">{% translate "Date" %}</th>
+          <th class="col-desc">{% translate "Description" %}</th>
+          <th class="col-amount">{% translate "Amount" %}</th>
+          <th class="col-cat">{% translate "Category" %}</th>
+          <th class="col-repeat">{% translate "Repeats" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for form in formset %}
+          <tr class="{% if not form.initial.include %}row-off{% endif %}{% if form.errors %} row-error{% endif %}">
+            <td class="col-check">{{ form.include }}</td>
+            <td class="col-date">{{ form.date }}</td>
+            <td class="col-desc">
+              {{ form.description }}{{ form.original_description }}
+              {% if form.initial.refunded_by %}<small class="note">{% blocktranslate with refund=form.initial.refunded_by %}Cancelled by the refund “{{ refund }}”{% endblocktranslate %}</small>
+              {% elif form.initial.refund_for %}<small class="note">{% blocktranslate with charge=form.initial.refund_for %}Refund of “{{ charge }}”{% endblocktranslate %}</small>
+              {% elif form.initial.duplicate %}<small class="note">{% translate "Already added" %}</small>
+              {% elif form.initial.counted_as_recurring %}<small class="note">{% translate "Already counted as recurring" %}</small>
+              {% elif form.initial.is_payment %}<small class="note">{% translate "Bill payment" %}</small>
+              {% elif form.initial.is_credit %}<small class="note">{% translate "Refund with no matching charge in this file" %}</small>{% endif %}
+              {% for field in form %}{% for error in field.errors %}<small class="error">{{ field.label|capfirst }}: {{ error }}</small>{% endfor %}{% endfor %}
+            </td>
+            <td class="col-amount">{{ form.amount }}</td>
+            <td class="col-cat">{{ form.category }}</td>
+            <td class="col-repeat">
+              {{ form.frequency }}
+              <div class="installment-inputs">
+                {{ form.installment_number }}<span>{% translate "of" %}</span>{{ form.installment_total }}
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="form-actions">
+      <button type="submit" form="cancel-import" class="btn">{% translate "Cancel" %}</button>
+      <button type="submit" class="btn primary">{% translate "Add selected expenses" %}</button>
+    </div>
+  </form>
+  <form id="cancel-import" method="post" action="{% url 'import_cancel' %}">{% csrf_token %}</form>
+</section>
+
+<script>
+  // Dim unchecked rows, and let the header checkbox select or clear every row.
+  const boxes = [...document.querySelectorAll('input[name$="-include"]')];
+  const toggleAll = document.getElementById("toggle-all");
+  const sync = () => {
+    boxes.forEach(b => b.closest("tr").classList.toggle("row-off", !b.checked));
+    toggleAll.checked = boxes.every(b => b.checked);
+    toggleAll.indeterminate = !toggleAll.checked && boxes.some(b => b.checked);
+  };
+  boxes.forEach(b => b.addEventListener("change", sync));
+  toggleAll.addEventListener("change", () => { boxes.forEach(b => (b.checked = toggleAll.checked)); sync(); });
+  sync();
+
+  // Show "3 of 4" inputs only on rows set to Installments.
+  document.querySelectorAll('select[name$="-frequency"]').forEach(select => {
+    const inputs = select.closest("td").querySelector(".installment-inputs");
+    const show = () => { inputs.hidden = select.value !== "installments"; };
+    select.addEventListener("change", show);
+    show();
+  });
+</script>
+{% endblock %}

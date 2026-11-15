@@ -1,0 +1,38 @@
+{% load static i18n %}{% get_current_language as LANGUAGE_CODE %}<!doctype html>
+<html lang="{{ LANGUAGE_CODE }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Finances{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'transactions/style.css' %}">
+</head>
+<body class="{% block page_class %}{% endblock %}">
+  <header class="topbar">
+    <a class="brand" href="{% url 'dashboard' %}">Finances</a>
+    {% if user.is_authenticated %}
+      <nav class="nav">
+        <a href="{% url 'user_settings' %}" class="link">{% translate "Settings" %}</a>
+      </nav>
+    {% else %}
+      <form class="language-switch" method="post" action="{% url 'set_language' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <select name="language" aria-label="{% translate 'Language' %}" onchange="this.form.submit()">
+          {% for code, name in available_languages %}
+            <option value="{{ code }}"{% if code == LANGUAGE_CODE %} selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    {% endif %}
+  </header>
+
+  <main class="container">
+    {% if messages %}
+      <ul class="messages">
+        {% for message in messages %}<li class="message {{ message.tags }}">{{ message }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

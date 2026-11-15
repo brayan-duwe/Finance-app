@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/bin/pip install *)",
+      "Bash(.venv/bin/pip freeze *)",
+      "Bash(.venv/bin/python manage.py makemigrations transactions)",
+      "Bash(.venv/bin/python manage.py migrate)",
+      "Bash(.venv/bin/python manage.py check)",
+      "Bash(.venv/bin/python manage.py test transactions)",
+      "Bash(.venv/bin/python manage.py shell -c \"from django.contrib.auth.models import User; print\\(list\\(User.objects.values_list\\('username', 'is_superuser'\\)\\)\\)\")",
+      "Bash(.venv/bin/python manage.py makemessages -l pt_BR -l es --ignore=.venv)",
+      "Bash(grep -v '^msgstr \"\"$')",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}

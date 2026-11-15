@@ -1,0 +1,43 @@
+# --- Secrets ---------------------------------------------------------------
+# Secret key and other settings (see .env.example for the template)
+.env
+.env.*
+!.env.example
+
+# --- Personal data ----------------------------------------------------------
+# The database holds your accounts, incomes and expenses
+db.sqlite3
+db.sqlite3-journal
+*.sqlite3
+
+# Bank statements: never commit real ones
+*.csv
+*.pdf
+*.ofx
+*.xls
+*.xlsx
+
+# Uploaded files (if the app ever stores them)
+media/
+
+# --- Python / Django --------------------------------------------------------
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.log
+staticfiles/
+.coverage
+htmlcov/
+.pytest_cache/
+
+# --- Editor and system files -----------------------------------------------
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# --- Claude Code ------------------------------------------------------------
+# Personal permissions for this machine (the shared .claude/settings.json is fine to commit)
+.claude/settings.local.json

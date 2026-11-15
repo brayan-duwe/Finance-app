@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% translate "Settings" %} · Finances{% endblock %}
+
+{% block content %}
+<section class="card narrow">
+  <h1>{% translate "Settings" %}</h1>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% for field in form %}{% include "transactions/_field.html" %}{% endfor %}
+    <div class="form-actions">
+      <a class="btn" href="{% url 'dashboard' %}">{% translate "Back" %}</a>
+      <button type="submit" class="btn primary">{% translate "Save" %}</button>
+    </div>
+  </form>
+</section>
+
+<section class="card narrow account">
+  <div>
+    <h2>{% translate "Account" %}</h2>
+    <p class="muted">{% blocktranslate with name=user.get_username %}Logged in as {{ name }}{% endblocktranslate %}</p>
+  </div>
+  <form method="post" action="{% url 'logout' %}">
+    {% csrf_token %}
+    <button type="submit" class="btn danger">{% translate "Log out" %}</button>
+  </form>
+</section>
+{% endblock %}

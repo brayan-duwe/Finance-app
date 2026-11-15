@@ -1,0 +1,581 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-15 15:44+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: transactions/currencies.py:11
+msgid "Brazilian real"
+msgstr "Real brasileño"
+
+#: transactions/currencies.py:13
+msgid "US dollar"
+msgstr "Dólar estadounidense"
+
+#: transactions/currencies.py:15
+msgid "Euro"
+msgstr "Euro"
+
+#: transactions/currencies.py:17
+msgid "British pound"
+msgstr "Libra esterlina"
+
+#: transactions/currencies.py:19
+msgid "Argentine peso"
+msgstr "Peso argentino"
+
+#: transactions/currencies.py:21
+msgid "Mexican peso"
+msgstr "Peso mexicano"
+
+#: transactions/forms.py:29 transactions/forms.py:141
+msgid "How many installments in total?"
+msgstr "¿Cuántas cuotas en total?"
+
+#: transactions/forms.py:40
+msgid "e.g. Groceries"
+msgstr "ej.: Supermercado"
+
+#: transactions/forms.py:46
+msgid ""
+"Recurring expenses count every month (or year) from this date. Installments "
+"count every month until the last one."
+msgstr ""
+"Los gastos recurrentes cuentan cada mes (o año) desde esta fecha. Las cuotas"
+" cuentan cada mes hasta la última."
+
+#: transactions/forms.py:48
+msgid "The amount above is the value of each installment."
+msgstr "El monto de arriba es el valor de cada cuota."
+
+#: transactions/forms.py:60
+msgid "e.g. Salary"
+msgstr "ej.: Sueldo"
+
+#: transactions/forms.py:64
+msgid "Add your salary as a monthly income."
+msgstr "Agrega tu sueldo como un ingreso mensual."
+
+#: transactions/forms.py:78
+msgid ""
+"Changes how amounts are shown, and which column is read from statements. "
+"Amounts you already added are not converted."
+msgstr ""
+"Cambia cómo se muestran los montos y qué columna se lee de los estados de "
+"cuenta. Los montos ya agregados no se convierten."
+
+#: transactions/forms.py:85
+msgid "Statement file"
+msgstr "Archivo del estado de cuenta"
+
+#: transactions/forms.py:86
+msgid "CSV or PDF, up to 10 MB. CSV exports are the most reliable."
+msgstr "CSV o PDF, hasta 10 MB. Los archivos CSV son los más confiables."
+
+#: transactions/forms.py:90
+msgid "Dates in your statement look like"
+msgstr "Las fechas en tu estado de cuenta se ven así"
+
+#: transactions/forms.py:91
+msgid "Day first: 31/12"
+msgstr "Día primero: 31/12"
+
+#: transactions/forms.py:91
+msgid "Month first: 12/31"
+msgstr "Mes primero: 12/31"
+
+#: transactions/forms.py:98 transactions/parsers.py:427
+msgid "Upload a CSV or PDF file."
+msgstr "Sube un archivo CSV o PDF."
+
+#: transactions/forms.py:100
+msgid "This file is larger than 10 MB."
+msgstr "Este archivo pesa más de 10 MB."
+
+#: transactions/forms.py:106
+msgid "Statement month"
+msgstr "Mes del estado de cuenta"
+
+#: transactions/forms.py:109
+msgid "The month you pay this bill. Installments are counted from here."
+msgstr ""
+"El mes en que pagas este estado de cuenta. Las cuotas se cuentan desde aquí."
+
+#: transactions/forms.py:117 transactions/models.py:74
+msgid "date"
+msgstr "fecha"
+
+#: transactions/forms.py:118 transactions/models.py:70
+msgid "description"
+msgstr "descripción"
+
+#: transactions/forms.py:120 transactions/models.py:72
+msgid "amount"
+msgstr "monto"
+
+#: transactions/forms.py:122 transactions/models.py:136
+msgid "category"
+msgstr "categoría"
+
+#: transactions/forms.py:123 transactions/models.py:76
+msgid "repeats"
+msgstr "se repite"
+
+#: transactions/forms.py:125
+msgid "installment"
+msgstr "cuota"
+
+#: transactions/forms.py:129
+#: transactions/templates/transactions/import_review.html:54
+msgid "of"
+msgstr "de"
+
+#: transactions/forms.py:143
+msgid "Can't be more than the total."
+msgstr "No puede ser mayor que el total."
+
+#: transactions/models.py:25
+msgid "One-time"
+msgstr "Única vez"
+
+#: transactions/models.py:26
+msgid "Monthly"
+msgstr "Mensual"
+
+#: transactions/models.py:27
+msgid "Yearly"
+msgstr "Anual"
+
+#: transactions/models.py:28
+#: transactions/templates/transactions/entry_detail.html:32
+msgid "Installments"
+msgstr "En cuotas"
+
+#: transactions/models.py:32
+msgid "Housing & bills"
+msgstr "Vivienda y servicios"
+
+#: transactions/models.py:33
+msgid "Food & groceries"
+msgstr "Comida y supermercado"
+
+#: transactions/models.py:34
+msgid "Transport"
+msgstr "Transporte"
+
+#: transactions/models.py:35
+msgid "Subscriptions"
+msgstr "Suscripciones"
+
+#: transactions/models.py:36
+msgid "Shopping"
+msgstr "Compras"
+
+#: transactions/models.py:37
+msgid "Health"
+msgstr "Salud"
+
+#: transactions/models.py:38
+msgid "Entertainment"
+msgstr "Ocio"
+
+#: transactions/models.py:39
+msgid "Fees & taxes"
+msgstr "Comisiones e impuestos"
+
+#: transactions/models.py:40
+msgid "Other"
+msgstr "Otros"
+
+#: transactions/models.py:79
+msgid "number of installments"
+msgstr "número de cuotas"
+
+#: transactions/models.py:129
+msgid "income"
+msgstr "ingreso"
+
+#: transactions/models.py:130
+msgid "incomes"
+msgstr "ingresos"
+
+#: transactions/models.py:138
+msgid "name on the statement"
+msgstr "nombre en el estado de cuenta"
+
+#: transactions/models.py:139
+msgid "The name exactly as it appeared on the credit card statement."
+msgstr "El nombre tal como apareció en el estado de cuenta de la tarjeta."
+
+#: transactions/models.py:141
+msgid "statement file"
+msgstr "archivo del estado de cuenta"
+
+#: transactions/models.py:145
+msgid "expense"
+msgstr "gasto"
+
+#: transactions/models.py:146
+msgid "expenses"
+msgstr "gastos"
+
+#: transactions/models.py:153
+msgid "language"
+msgstr "idioma"
+
+#: transactions/models.py:154
+msgid "currency"
+msgstr "moneda"
+
+#: transactions/parsers.py:362
+msgid "PDF support needs pdfplumber. Run: pip install pdfplumber"
+msgstr ""
+"Para leer PDFs se necesita pdfplumber. Ejecuta: pip install pdfplumber"
+
+#: transactions/parsers.py:373
+msgid ""
+"This PDF couldn't be read. If it's password-protected or a scanned image, "
+"try your bank's CSV export instead."
+msgstr ""
+"No se pudo leer este PDF. Si tiene contraseña o es una imagen escaneada, usa"
+" el archivo CSV de tu banco."
+
+#: transactions/templates/base.html:14
+#: transactions/templates/transactions/settings.html:3
+#: transactions/templates/transactions/settings.html:7
+msgid "Settings"
+msgstr "Configuración"
+
+#: transactions/templates/base.html:20
+msgid "Language"
+msgstr "Idioma"
+
+#: transactions/templates/registration/login.html:3
+#: transactions/templates/registration/login.html:7
+#: transactions/templates/registration/login.html:14
+#: transactions/templates/registration/signup.html:16
+msgid "Log in"
+msgstr "Iniciar sesión"
+
+#: transactions/templates/registration/login.html:17
+msgid "New here?"
+msgstr "¿Eres nuevo?"
+
+#: transactions/templates/registration/login.html:17
+#: transactions/templates/registration/signup.html:7
+msgid "Create an account"
+msgstr "Crear una cuenta"
+
+#: transactions/templates/registration/signup.html:3
+#: transactions/templates/registration/signup.html:13
+msgid "Sign up"
+msgstr "Registrarse"
+
+#: transactions/templates/registration/signup.html:16
+msgid "Already have an account?"
+msgstr "¿Ya tienes una cuenta?"
+
+#: transactions/templates/transactions/dashboard.html:7
+msgid "Previous month"
+msgstr "Mes anterior"
+
+#: transactions/templates/transactions/dashboard.html:9
+msgid "Next month"
+msgstr "Mes siguiente"
+
+#: transactions/templates/transactions/dashboard.html:11
+msgid "Back to this month"
+msgstr "Volver a este mes"
+
+#: transactions/templates/transactions/dashboard.html:14
+#: transactions/templates/transactions/import_upload.html:3
+msgid "Import statement"
+msgstr "Importar estado de cuenta"
+
+#: transactions/templates/transactions/dashboard.html:15
+msgid "Add expense"
+msgstr "Agregar gasto"
+
+#: transactions/templates/transactions/dashboard.html:16
+msgid "Add income"
+msgstr "Agregar ingreso"
+
+#: transactions/templates/transactions/dashboard.html:23
+#, python-format
+msgid "Spent %(spent)s of %(income)s"
+msgstr "Gastaste %(spent)s de %(income)s"
+
+#: transactions/templates/transactions/dashboard.html:35
+msgid "over budget"
+msgstr "sobre el presupuesto"
+
+#: transactions/templates/transactions/dashboard.html:38
+#, python-format
+msgid "left of %(income)s"
+msgstr "quedan de %(income)s"
+
+#: transactions/templates/transactions/dashboard.html:55
+msgid "Left"
+msgstr "Queda"
+
+#: transactions/templates/transactions/dashboard.html:66
+msgid "Add your salary to see where your money goes this month."
+msgstr "Agrega tu sueldo para ver a dónde va tu dinero este mes."
+
+#: transactions/templates/transactions/dashboard.html:67
+msgid "Add salary"
+msgstr "Agregar sueldo"
+
+#: transactions/templates/transactions/dashboard.html:73
+msgid "Transactions"
+msgstr "Movimientos"
+
+#: transactions/templates/transactions/dashboard.html:81
+#: transactions/templates/transactions/entry_detail.html:9
+msgid "Income"
+msgstr "Ingreso"
+
+#: transactions/templates/transactions/dashboard.html:94
+msgid "Delete this entry from every month?"
+msgstr "¿Eliminar este registro de todos los meses?"
+
+#: transactions/templates/transactions/dashboard.html:94
+#: transactions/templates/transactions/entry_detail.html:70
+msgid "Delete this entry?"
+msgstr "¿Eliminar este registro?"
+
+#: transactions/templates/transactions/dashboard.html:97
+#: transactions/templates/transactions/entry_detail.html:64
+msgid "Delete"
+msgstr "Eliminar"
+
+#: transactions/templates/transactions/dashboard.html:103
+msgid "Nothing here yet. Import a statement or add an expense."
+msgstr "Aún no hay nada. Importa un estado de cuenta o agrega un gasto."
+
+#: transactions/templates/transactions/entry_detail.html:6
+#: transactions/templates/transactions/settings.html:12
+msgid "Back"
+msgstr "Volver"
+
+#: transactions/templates/transactions/entry_detail.html:18
+msgid "Name on the statement"
+msgstr "Nombre en el estado de cuenta"
+
+#: transactions/templates/transactions/entry_detail.html:23
+msgid "Purchase date"
+msgstr "Fecha de compra"
+
+#: transactions/templates/transactions/entry_detail.html:23
+msgid "Starts"
+msgstr "Empieza el"
+
+#: transactions/templates/transactions/entry_detail.html:23
+#: transactions/templates/transactions/import_review.html:27
+msgid "Date"
+msgstr "Fecha"
+
+#: transactions/templates/transactions/entry_detail.html:27
+#: transactions/templates/transactions/import_review.html:31
+msgid "Repeats"
+msgstr "Se repite"
+
+#: transactions/templates/transactions/entry_detail.html:35
+#, python-format
+msgid "Installment %(number)s of %(total)s this month"
+msgstr "Cuota %(number)s de %(total)s este mes"
+
+#: transactions/templates/transactions/entry_detail.html:38
+#, python-format
+msgid "From %(first)s to %(last)s"
+msgstr "De %(first)s a %(last)s"
+
+#: transactions/templates/transactions/entry_detail.html:43
+msgid "Total"
+msgstr "Total"
+
+#: transactions/templates/transactions/entry_detail.html:49
+msgid "Imported from"
+msgstr "Importado de"
+
+#: transactions/templates/transactions/entry_detail.html:57
+msgid "Edit"
+msgstr "Editar"
+
+#: transactions/templates/transactions/entry_detail.html:66
+#: transactions/templates/transactions/entry_form.html:14
+#: transactions/templates/transactions/settings.html:13
+msgid "Save"
+msgstr "Guardar"
+
+#: transactions/templates/transactions/entry_form.html:13
+#: transactions/templates/transactions/import_review.html:63
+#: transactions/templates/transactions/import_upload.html:13
+msgid "Cancel"
+msgstr "Cancelar"
+
+#: transactions/templates/transactions/import_review.html:3
+#: transactions/templates/transactions/import_review.html:8
+msgid "Review expenses"
+msgstr "Revisar gastos"
+
+#: transactions/templates/transactions/import_review.html:10
+#, python-format
+msgid "Found %(counter)s transaction in <strong>%(file)s</strong>."
+msgid_plural "Found %(counter)s transactions in <strong>%(file)s</strong>."
+msgstr[0] "Se encontró %(counter)s movimiento en <strong>%(file)s</strong>."
+msgstr[1] ""
+"Se encontraron %(counter)s movimientos en <strong>%(file)s</strong>."
+
+#: transactions/templates/transactions/import_review.html:11
+msgid ""
+"Uncheck anything you don't want, fix names and categories, and mark bills "
+"that repeat. Payments, duplicates, and refunds together with the charges "
+"they cancel start unchecked."
+msgstr ""
+"Desmarca lo que no quieras, corrige nombres y categorías y marca las cuentas"
+" que se repiten. Pagos, duplicados y reembolsos (junto con el cargo que "
+"cancelan) empiezan desmarcados."
+
+#: transactions/templates/transactions/import_review.html:26
+msgid "Select all"
+msgstr "Seleccionar todo"
+
+#: transactions/templates/transactions/import_review.html:28
+msgid "Description"
+msgstr "Descripción"
+
+#: transactions/templates/transactions/import_review.html:29
+msgid "Amount"
+msgstr "Monto"
+
+#: transactions/templates/transactions/import_review.html:30
+msgid "Category"
+msgstr "Categoría"
+
+#: transactions/templates/transactions/import_review.html:41
+#, python-format
+msgid "Cancelled by the refund “%(refund)s”"
+msgstr "Cancelado por el reembolso “%(refund)s”"
+
+#: transactions/templates/transactions/import_review.html:42
+#, python-format
+msgid "Refund of “%(charge)s”"
+msgstr "Reembolso de “%(charge)s”"
+
+#: transactions/templates/transactions/import_review.html:43
+msgid "Already added"
+msgstr "Ya agregado"
+
+#: transactions/templates/transactions/import_review.html:44
+msgid "Already counted as recurring"
+msgstr "Ya contado como recurrente"
+
+#: transactions/templates/transactions/import_review.html:45
+msgid "Bill payment"
+msgstr "Pago de la tarjeta"
+
+#: transactions/templates/transactions/import_review.html:46
+msgid "Refund with no matching charge in this file"
+msgstr "Reembolso sin cargo correspondiente en este archivo"
+
+#: transactions/templates/transactions/import_review.html:64
+msgid "Add selected expenses"
+msgstr "Agregar gastos seleccionados"
+
+#: transactions/templates/transactions/import_upload.html:7
+msgid "Import a credit card statement"
+msgstr "Importar un estado de cuenta de la tarjeta"
+
+#: transactions/templates/transactions/import_upload.html:8
+msgid ""
+"Upload the file from your bank. You'll review every expense before anything "
+"is saved."
+msgstr ""
+"Sube el archivo de tu banco. Revisarás cada gasto antes de guardar nada."
+
+#: transactions/templates/transactions/import_upload.html:14
+msgid "Read statement"
+msgstr "Leer estado de cuenta"
+
+#: transactions/templates/transactions/settings.html:20
+#| msgid "Amount"
+msgid "Account"
+msgstr "Cuenta"
+
+#: transactions/templates/transactions/settings.html:21
+#, python-format
+msgid "Logged in as %(name)s"
+msgstr "Sesión iniciada como %(name)s"
+
+#: transactions/templates/transactions/settings.html:25
+msgid "Log out"
+msgstr "Cerrar sesión"
+
+#: transactions/views.py:46
+msgid "Welcome! Start by adding your salary."
+msgstr "¡Bienvenido! Empieza agregando tu sueldo."
+
+#: transactions/views.py:58
+msgid "Settings saved."
+msgstr "Configuración guardada."
+
+#: transactions/views.py:124
+#, python-format
+msgid "Added “%(name)s”."
+msgstr "Se agregó “%(name)s”."
+
+#: transactions/views.py:131
+msgid "Add an expense"
+msgstr "Agregar un gasto"
+
+#: transactions/views.py:137
+msgid "Salary"
+msgstr "Sueldo"
+
+#: transactions/views.py:138
+msgid "Add an income"
+msgstr "Agregar un ingreso"
+
+#: transactions/views.py:153
+#, python-format
+msgid "Saved “%(name)s”."
+msgstr "Se guardó “%(name)s”."
+
+#: transactions/views.py:173
+#, python-format
+msgid "Deleted “%(name)s”."
+msgstr "Se eliminó “%(name)s”."
+
+#: transactions/views.py:200
+msgid ""
+"No transactions were found in this file. Try your bank's CSV export, or "
+"check the date format and the currency in Settings."
+msgstr ""
+"No se encontraron movimientos en este archivo. Prueba el CSV de tu banco, o "
+"revisa el formato de fecha y la moneda en Configuración."
+
+#: transactions/views.py:293
+msgid "Upload a statement first."
+msgstr "Primero sube un estado de cuenta."
+
+#: transactions/views.py:330
+#, python-format
+msgid "Added %(count)d expense from %(file)s."
+msgid_plural "Added %(count)d expenses from %(file)s."
+msgstr[0] "Se agregó %(count)d gasto de %(file)s."
+msgstr[1] "Se agregaron %(count)d gastos de %(file)s."
