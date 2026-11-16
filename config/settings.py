@@ -11,8 +11,10 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
+import dj_database_url
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -81,12 +83,28 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# With DATABASE_URL in .env (e.g. Supabase's PostgreSQL), the app uses that database.
+# Without it, a local SQLite file, so the project still runs right after cloning.
+# Tests always use SQLite: fast, offline, and they never touch your real data.
+DATABASE_URL = os.environ.get('DATABASE_URL')
+RUNNING_TESTS = len(sys.argv) > 1 and sys.argv[1] == 'test'
+
+if DATABASE_URL and not RUNNING_TESTS:
+    DATABASES = {
+        'default': dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,         # reuse connections (a remote database is slower to connect to)
+            conn_health_checks=True,  # but check they're still alive first
+            ssl_require=True,         # always encrypt the connection
+        )
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation

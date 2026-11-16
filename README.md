@@ -33,7 +33,7 @@ Um app de finanças pessoais feito com Django: importe a fatura do cartão, acom
 
 ## Tecnologias
 
-Python 3.14 · Django 6.1 · SQLite · JavaScript sem frameworks · SVG para os gráficos · [Claude API](https://platform.claude.com/docs) (assistente) · pdfplumber (faturas em PDF)
+Python 3.14 · Django 6.1 · PostgreSQL ([Supabase](https://supabase.com)) ou SQLite · JavaScript sem frameworks · SVG para os gráficos · [Claude API](https://platform.claude.com/docs) (assistente) · pdfplumber (faturas em PDF)
 
 ## Como rodar
 
@@ -58,6 +58,7 @@ Abra http://127.0.0.1:8000, crie uma conta e adicione seu salário.
 |---|---|---|
 | `DJANGO_SECRET_KEY` | Sim | Chave secreta do Django. Gere com o comando no `.env.example`. |
 | `DJANGO_DEBUG` | Não | `True` para desenvolvimento. Use `False` em produção. |
+| `DATABASE_URL` | Não | Banco PostgreSQL, por exemplo do [Supabase](https://supabase.com) (use a string do *Session pooler*). Sem ela, o app usa um arquivo SQLite local. |
 | `ANTHROPIC_API_KEY` | Não | Liga o assistente de IA. Sem ela, o app funciona normalmente, só sem o assistente. |
 | `AI_MODEL` | Não | Modelo do Claude. Padrão: `claude-opus-5-5`. Para gastar menos: `claude-haiku-5-5`. |
 | `AI_EFFORT` | Não | `low` (padrão, respostas rápidas), `medium` ou `high`. |
@@ -135,7 +136,7 @@ A personal finance app built with Django: import your credit card statement, see
 
 ## Tech stack
 
-Python 3.14 · Django 6.1 · SQLite · framework-free JavaScript · SVG charts · [Claude API](https://platform.claude.com/docs) (assistant) · pdfplumber (PDF statements)
+Python 3.14 · Django 6.1 · PostgreSQL ([Supabase](https://supabase.com)) or SQLite · framework-free JavaScript · SVG charts · [Claude API](https://platform.claude.com/docs) (assistant) · pdfplumber (PDF statements)
 
 ## Getting started
 
@@ -160,6 +161,7 @@ Open http://127.0.0.1:8000, create an account and add your salary.
 |---|---|---|
 | `DJANGO_SECRET_KEY` | Yes | Django's secret key. Generate one with the command in `.env.example`. |
 | `DJANGO_DEBUG` | No | `True` for development. Use `False` in production. |
+| `DATABASE_URL` | No | A PostgreSQL database, for example from [Supabase](https://supabase.com) (use the *Session pooler* string). Without it, the app uses a local SQLite file. |
 | `ANTHROPIC_API_KEY` | No | Turns on the AI assistant. Without it, the app works normally, just without the assistant. |
 | `AI_MODEL` | No | The Claude model. Default: `claude-opus-5-5`. To spend less: `claude-haiku-5-5`. |
 | `AI_EFFORT` | No | `low` (default, quick answers), `medium` or `high`. |
