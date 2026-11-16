@@ -1,3 +1,4 @@
+import calendar
 from datetime import date
 from decimal import Decimal
 from itertools import chain
@@ -28,6 +29,7 @@ from .models import (
     Income, Kind, add_months, get_category, get_profile,
 )
 from .parsers import StatementError, parse_statement
+from .matching import match_recurring
 from .refunds import pair_refunds
 
 IMPORT_SESSION_KEY = "statement_import"
@@ -54,21 +56,29 @@ def signup(request):
 
 @login_required
 def user_settings(request):
+    """Settings, in three tabs: ?tab=general (default), categories or account."""
     profile = get_profile(request.user)
     form = ProfileForm(request.POST or None, instance=profile)
     if request.method == "POST" and form.is_valid():
         form.save()
         translation.activate(profile.language)  # so this message is already in the new language
         messages.success(request, _("Settings saved."))
-        response = redirect("user_settings")
+        response = redirect(_settings_url("general"))
         response.set_cookie(settings.LANGUAGE_COOKIE_NAME, profile.language, max_age=365 * 24 * 3600)
         return response
+
+    tabs = [("general", _("General")), ("categories", _("Categories")), ("account", _("Account"))]
+    tab = request.GET.get("tab")
+    if tab not in dict(tabs):
+        tab = "general"
 
     categories = Category.objects.filter(user=request.user).annotate(
         uses=Count("expenses", distinct=True) + Count("incomes", distinct=True)
     )
     return render(request, "transactions/settings.html", {
         "form": form,
+        "tabs": tabs,
+        "tab": tab,
         "category_groups": [
             (Kind.EXPENSE, Kind.EXPENSE.label, [c for c in categories if c.kind == Kind.EXPENSE]),
             (Kind.INCOME, Kind.INCOME.label, [c for c in categories if c.kind == Kind.INCOME]),
@@ -79,8 +89,8 @@ def user_settings(request):
 # --- Categories ------------------------------------------------------------
 
 
-def _settings_url():
-    return f"{reverse('user_settings')}#categories"
+def _settings_url(tab="categories"):
+    return f"{reverse('user_settings')}?tab={tab}"
 
 
 @login_required
@@ -345,17 +355,18 @@ def import_statement(request):
     return _render_form(request, "transactions/import_upload.html", {"form": form})
 
 
-def _review_rows(user, rows):
-    """Initial data for the review table.
+def _review_rows(user, rows, bill_month):
+    """Initial data for the review page, sorted into three groups:
 
-    Unchecked from the start: duplicates, bill payments, and refunds together with
-    the charge they cancel.
+    - "new": expenses to add (checked);
+    - "registered": already in the app (subscriptions, installments, duplicates);
+    - "payments": bill payments, and refunds together with the charge they cancel.
     """
     dates = [date.fromisoformat(r["date"]) for r in rows]
     existing = Expense.objects.filter(user=user)
 
-    def key(expense_or_row_name):
-        return expense_or_row_name.strip().lower()
+    def key(name):
+        return name.strip().lower()
 
     # One-time purchases and installment plans already added (same date, amount and statement name).
     already_added = {
@@ -365,14 +376,6 @@ def _review_rows(user, rows):
             date__gte=min(dates), date__lte=max(dates),
         ).values_list("date", "amount", "original_description", "description")
     }
-    # Monthly / yearly bills already counted every month.
-    recurring = set()
-    for amount, original, description in existing.filter(
-        frequency__in=[Frequency.MONTHLY, Frequency.YEARLY]
-    ).values_list("amount", "original_description", "description"):
-        recurring.add((amount, key(description)))
-        if original:
-            recurring.add((amount, key(original)))
 
     # The guesser returns default keys ("food"); map them to the user's own categories.
     # If the user deleted that category, the expense goes to "Other".
@@ -384,10 +387,6 @@ def _review_rows(user, rows):
         row_date, amount = date.fromisoformat(r["date"]), Decimal(r["amount"])
         names = {key(r["original"]), key(r["description"])}
         guessed = guess_category(r["description"], r.get("bank_category", ""))
-        category = by_key.get(guessed) or by_key.get(OTHER)
-        duplicate = any((row_date, amount, n) in already_added for n in names)
-        counted_as_recurring = any((amount, n) in recurring for n in names)
-        is_credit = amount <= 0
 
         if r.get("installment_total"):
             frequency = Frequency.INSTALLMENTS
@@ -397,22 +396,71 @@ def _review_rows(user, rows):
             frequency = Frequency.ONCE
 
         initial.append({
-            "include": not (duplicate or counted_as_recurring or is_credit),
             "date": row_date,
             "description": r["description"],
             "original_description": r["original"],
             "amount": amount,
-            "category": category,
+            "category": by_key.get(guessed) or by_key.get(OTHER),
             "frequency": frequency,
             "installment_number": r.get("installment_number"),
             "installment_total": r.get("installment_total"),
-            # Shown as notes in the table:
-            "duplicate": duplicate,
-            "counted_as_recurring": counted_as_recurring,
-            "is_credit": is_credit,
+            "duplicate": any((row_date, amount, n) in already_added for n in names),
+            "counted_as_recurring": False,
+            "is_credit": amount <= 0,
         })
+
+    # Subscriptions: same name (ignoring bank codes) and a similar price (see matching.py).
+    recurring = existing.filter(frequency__in=[Frequency.MONTHLY, Frequency.YEARLY]).for_month(
+        bill_month.year, bill_month.month
+    )
+    for index, (expense, price_changed) in match_recurring(initial, recurring).items():
+        row = initial[index]
+        row.update(
+            counted_as_recurring=True,
+            recurring_id=expense.pk,
+            recurring_amount=expense.amount,
+            price_changed=price_changed,
+            update_recurring=price_changed,  # suggest updating the price (the user can uncheck it)
+        )
+
     # A refund and the charge it cancels (e.g. a fee and its "estorno") both stay out.
-    return pair_refunds(initial)
+    pair_refunds(initial)
+
+    for row in initial:
+        if row["is_credit"] or row.get("refunded_by"):
+            row["group"] = "payments"
+        elif row["duplicate"] or row["counted_as_recurring"]:
+            row["group"] = "registered"
+        else:
+            row["group"] = "new"
+        row["include"] = row["group"] == "new"
+    return initial
+
+
+def _change_recurring_price(expense, new_amount, bill_month, filename):
+    """Give a subscription a new price from `bill_month` on, keeping past months as they were.
+
+    The old entry ends in the month before, and a copy with the new price starts in
+    `bill_month`. (If it only started this month anyway, its amount is just corrected.)
+    """
+    if expense.date.replace(day=1) >= bill_month:
+        expense.amount = new_amount
+        expense.save()
+        return
+    day = min(expense.date.day, calendar.monthrange(bill_month.year, bill_month.month)[1])
+    Expense.objects.create(
+        user=expense.user,
+        description=expense.description,
+        original_description=expense.original_description,
+        amount=new_amount,
+        date=date(bill_month.year, bill_month.month, day),
+        category=expense.category,
+        frequency=expense.frequency,
+        source_file=filename,
+        imported=expense.imported,
+    )
+    expense.ends_on = add_months(bill_month, -1)
+    expense.save()
 
 
 @login_required
@@ -422,8 +470,9 @@ def import_review(request):
         messages.info(request, _("Upload a statement first."))
         return redirect("import_statement")
 
-    initial = _review_rows(request.user, data["rows"])
-    month_initial = {"bill_month": date.fromisoformat(data["bill_month"])}
+    session_bill_month = date.fromisoformat(data["bill_month"])
+    initial = _review_rows(request.user, data["rows"], session_bill_month)
+    month_initial = {"bill_month": session_bill_month}
     row_kwargs = {"categories": Category.objects.filter(user=request.user, kind=Kind.EXPENSE)}
 
     if request.method == "POST":
@@ -454,6 +503,20 @@ def import_review(request):
                 expense.save()
                 new_expenses.append(expense)
 
+            # Subscriptions whose price changed, where the user kept "update the price" checked.
+            updated = 0
+            for f in formset:
+                row = f.cleaned_data
+                if not (row.get("update_recurring") and row.get("recurring_id")) or row["amount"] <= 0:
+                    continue
+                expense = Expense.objects.filter(
+                    user=request.user, pk=row["recurring_id"],
+                    frequency__in=[Frequency.MONTHLY, Frequency.YEARLY],
+                ).first()
+                if expense and expense.amount != row["amount"]:
+                    _change_recurring_price(expense, row["amount"], bill_month, data["filename"])
+                    updated += 1
+
             del request.session[IMPORT_SESSION_KEY]
             count = len(new_expenses)
             messages.success(request, ngettext(
@@ -461,15 +524,29 @@ def import_review(request):
                 "Added %(count)d expenses from %(file)s.",
                 count,
             ) % {"count": count, "file": data["filename"]})
+            if updated:
+                messages.success(request, ngettext(
+                    "Updated the price of %(count)d subscription.",
+                    "Updated the price of %(count)d subscriptions.",
+                    updated,
+                ) % {"count": updated})
             return redirect(_dashboard_url(bill_month))
     else:
         formset = ImportRowFormSet(initial=initial, form_kwargs=row_kwargs)
         month_form = BillMonthForm(initial=month_initial)
 
+    # The template shows the rows in three groups (the forms keep their order in the formset).
+    groups = {"new": [], "registered": [], "payments": []}
+    for form in formset:
+        groups[form.initial.get("group", "new")].append(form)
     return render(request, "transactions/import_review.html", {
         "formset": formset,
         "month_form": month_form,
         "filename": data["filename"],
+        "new_rows": groups["new"],
+        "registered_rows": groups["registered"],
+        "payment_rows": groups["payments"],
+        "has_price_changes": any(f.initial.get("price_changed") for f in groups["registered"]),
     })
 
 

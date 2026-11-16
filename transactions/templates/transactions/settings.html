@@ -3,52 +3,60 @@
 {% block title %}{% translate "Settings" %} · Finances{% endblock %}
 
 {% block content %}
-<section class="card narrow">
+{# Three tabs. All three are in the page; the tabs only show one at a time, #}
+{# so switching is instant (and ?tab= in the address keeps it after a reload). #}
+<div class="settings" data-tabs>
   <h1>{% translate "Settings" %}</h1>
-  <form method="post" novalidate>
-    {% csrf_token %}
-    {% for field in form %}{% include "transactions/_field.html" %}{% endfor %}
-    <div class="form-actions">
-      <a class="btn" href="{% url 'dashboard' %}">{% translate "Back" %}</a>
-      <button type="submit" class="btn primary">{% translate "Save" %}</button>
-    </div>
-  </form>
-</section>
+  <nav class="segmented tabs" aria-label="{% translate 'Settings sections' %}">
+    {% for value, label in tabs %}
+      <a href="?tab={{ value }}" data-tab="{{ value }}"{% if value == tab %} aria-current="true"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
 
-<section class="card narrow" id="categories">
-  <h2>{% translate "Categories" %}</h2>
-  {% for kind, kind_label, categories in category_groups %}
-    <div class="category-group">
-      <div class="category-group-header">
-        <h3>{{ kind_label }}</h3>
-        <a class="btn small" href="{% url 'category_new' %}?kind={{ kind }}" data-panel>+ {% translate "New category" %}</a>
+  <section class="card" data-tab-panel="general"{% if tab != "general" %} hidden{% endif %}>
+    <form method="post" action="{% url 'user_settings' %}?tab=general" novalidate>
+      {% csrf_token %}
+      {% for field in form %}{% include "transactions/_field.html" %}{% endfor %}
+      <div class="form-actions">
+        <button type="submit" class="btn primary">{% translate "Save" %}</button>
       </div>
-      <ul class="category-list">
-        {% for category in categories %}
-          <li>
-            <a href="{% url 'category_edit' category.pk %}" data-panel>
-              <span class="chip-dot" style="background: {{ category.color }}"></span>
-              <span class="category-name">{{ category.label }}</span>
-              <span class="muted category-uses">
-                {% blocktranslate count counter=category.uses %}{{ counter }} item{% plural %}{{ counter }} items{% endblocktranslate %}
-              </span>
-              <span class="muted" aria-hidden="true">›</span>
-            </a>
-          </li>
-        {% endfor %}
-      </ul>
-    </div>
-  {% endfor %}
-</section>
+    </form>
+  </section>
 
-<section class="card narrow account">
-  <div>
-    <h2>{% translate "Account" %}</h2>
-    <p class="muted">{% blocktranslate with name=user.get_username %}Logged in as {{ name }}{% endblocktranslate %}</p>
-  </div>
-  <form method="post" action="{% url 'logout' %}">
-    {% csrf_token %}
-    <button type="submit" class="btn danger">{% translate "Log out" %}</button>
-  </form>
-</section>
+  <section class="card" data-tab-panel="categories"{% if tab != "categories" %} hidden{% endif %}>
+    {% for kind, kind_label, categories in category_groups %}
+      <div class="category-group">
+        <div class="category-group-header">
+          <h3>{{ kind_label }}</h3>
+          <a class="btn small" href="{% url 'category_new' %}?kind={{ kind }}" data-panel>+ {% translate "New category" %}</a>
+        </div>
+        <ul class="category-list">
+          {% for category in categories %}
+            <li>
+              <a href="{% url 'category_edit' category.pk %}" data-panel>
+                <span class="chip-dot" style="background: {{ category.color }}"></span>
+                <span class="category-name">{{ category.label }}</span>
+                <span class="muted category-uses">
+                  {% blocktranslate count counter=category.uses %}{{ counter }} item{% plural %}{{ counter }} items{% endblocktranslate %}
+                </span>
+                <span class="muted" aria-hidden="true">›</span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endfor %}
+  </section>
+
+  <section class="card account" data-tab-panel="account"{% if tab != "account" %} hidden{% endif %}>
+    <div>
+      <h2>{% translate "Account" %}</h2>
+      <p class="muted">{% blocktranslate with name=user.get_username %}Logged in as {{ name }}{% endblocktranslate %}</p>
+    </div>
+    <form method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn danger">{% translate "Log out" %}</button>
+    </form>
+  </section>
+</div>
 {% endblock %}

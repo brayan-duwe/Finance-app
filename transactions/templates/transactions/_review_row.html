@@ -1,0 +1,31 @@
+{% load i18n money %}
+<tr class="{% if not form.initial.include %}row-off{% endif %}{% if form.errors %} row-error{% endif %}">
+  <td class="col-check">{{ form.include }}</td>
+  <td class="col-date">{{ form.date }}</td>
+  <td class="col-desc">
+    {{ form.description }}{{ form.original_description }}{{ form.recurring_id }}
+    {% if form.initial.refunded_by %}<small class="note">{% blocktranslate with refund=form.initial.refunded_by %}Cancelled by the refund “{{ refund }}”{% endblocktranslate %}</small>
+    {% elif form.initial.refund_for %}<small class="note">{% blocktranslate with charge=form.initial.refund_for %}Refund of “{{ charge }}”{% endblocktranslate %}</small>
+    {% elif form.initial.price_changed %}
+      <small class="note note-attention">
+        {% blocktranslate with old=form.initial.recurring_amount|money:currency new=form.initial.amount|money:currency %}Already counted as recurring · price changed {{ old }} → {{ new }}{% endblocktranslate %}
+      </small>
+      <label class="inline-check">
+        {{ form.update_recurring }}
+        <span>{% translate "Update the price from this month on" %}</span>
+      </label>
+    {% elif form.initial.counted_as_recurring %}<small class="note">{% translate "Already counted as recurring" %}</small>
+    {% elif form.initial.duplicate %}<small class="note">{% translate "Already added" %}</small>
+    {% elif form.initial.is_payment %}<small class="note">{% translate "Bill payment" %}</small>
+    {% elif form.initial.is_credit %}<small class="note">{% translate "Refund with no matching charge in this file" %}</small>{% endif %}
+    {% for field in form %}{% for error in field.errors %}<small class="error">{{ field.label|capfirst }}: {{ error }}</small>{% endfor %}{% endfor %}
+  </td>
+  <td class="col-amount">{{ form.amount }}</td>
+  <td class="col-cat">{{ form.category }}</td>
+  <td class="col-repeat">
+    {{ form.frequency }}
+    <div class="installment-inputs">
+      {{ form.installment_number }}<span>{% translate "of" %}</span>{{ form.installment_total }}
+    </div>
+  </td>
+</tr>

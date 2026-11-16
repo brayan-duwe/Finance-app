@@ -143,8 +143,9 @@
           <span class="entry-amount {% if entry.kind == 'income' %}positive{% endif %}">
             {% if entry.kind == "income" %}+{% endif %}{{ entry.amount|money:currency }}
           </span>
+          {% if entry.is_recurring %}{% translate "Delete this entry from every month?" as msg %}{% else %}{% translate "Delete this entry?" as msg %}{% endif %}
           <form method="post" action="{% url 'delete_entry' entry.kind entry.pk %}"
-                onsubmit="return confirm('{% if entry.is_recurring %}{% translate "Delete this entry from every month?" as msg %}{% else %}{% translate "Delete this entry?" as msg %}{% endif %}{{ msg|escapejs }}')">
+                data-confirm="{{ msg }}" data-confirm-detail="{{ entry.description }}" data-next-current>
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.get_full_path }}">
             <button type="submit" class="icon-btn small" aria-label="{% translate 'Delete' %}">×</button>

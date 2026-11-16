@@ -1,5 +1,9 @@
 {% load static i18n assets %}{% get_current_language as LANGUAGE_CODE %}<!doctype html>
-<html lang="{{ LANGUAGE_CODE }}">
+<html lang="{{ LANGUAGE_CODE }}"
+      data-i18n-today="{% translate 'Today' %}"
+      data-i18n-choose-date="{% translate 'Choose a date' %}"
+      data-i18n-prev-month="{% translate 'Previous month' %}"
+      data-i18n-next-month="{% translate 'Next month' %}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -38,7 +42,16 @@
             </a>
           </div>
         </div>
-        <a href="{% url 'user_settings' %}" class="link">{% translate "Settings" %}</a>
+        {% translate "Settings" as settings_label %}
+        <a href="{% url 'user_settings' %}" class="icon-link" aria-label="{{ settings_label }}" data-tooltip="{{ settings_label }}"
+           {% if request.resolver_match.url_name == "user_settings" %}aria-current="page"{% endif %}>
+          {# gear #}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </a>
       </nav>
     {% else %}
       <form class="language-switch" method="post" action="{% url 'set_language' %}">
@@ -54,13 +67,22 @@
   </header>
 
   <main class="container">
-    {% if messages %}
-      <ul class="messages">
-        {% for message in messages %}<li class="message {{ message.tags }}">{{ message }}</li>{% endfor %}
-      </ul>
-    {% endif %}
     {% block content %}{% endblock %}
   </main>
+
+  {# Notifications ("Deleted …", "Settings saved."): bottom corner, they go away by themselves #}
+  <div class="toasts" aria-live="polite">
+    {% for message in messages %}
+      <div class="toast {{ message.tags }}" role="status">
+        <span class="toast-icon" aria-hidden="true">
+          {% if message.level_tag == "error" %}!{% elif message.level_tag == "success" %}✓{% else %}i{% endif %}
+        </span>
+        <span class="toast-text">{{ message }}</span>
+        <button type="button" class="toast-close" data-toast-close aria-label="{% translate 'Close' %}">×</button>
+        <span class="toast-timer" aria-hidden="true"></span>
+      </div>
+    {% endfor %}
+  </div>
 
   {% if user.is_authenticated %}
     {# On phones the "+ New" button moves to the bottom corner #}
@@ -73,6 +95,19 @@
       <button type="button" class="icon-btn panel-close" data-panel-close aria-label="{% translate 'Close' %}">×</button>
       <div id="panel-body"></div>
     </aside>
+
+    {# "Delete this?" confirmation, in the middle of the screen. Used by forms with data-confirm. #}
+    <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-detail">
+      <form method="dialog">
+        <h2 id="confirm-title" class="confirm-title"></h2>
+        <p id="confirm-detail" class="confirm-detail"></p>
+        <div class="confirm-actions">
+          <button type="submit" value="cancel" class="btn">{% translate "Cancel" %}</button>
+          {# autofocus: pressing Enter confirms (Esc or clicking outside cancels) #}
+          <button type="submit" value="confirm" class="btn danger" data-confirm-button autofocus>{% translate "Delete" %}</button>
+        </div>
+      </form>
+    </dialog>
   {% endif %}
 </body>
 </html>

@@ -25,7 +25,10 @@
     </div>
     <div>
       <dt>{% translate "Repeats" %}</dt>
-      <dd>{{ entry.get_frequency_display }}</dd>
+      <dd>
+        {{ entry.get_frequency_display }}
+        {% if entry.ends_on %}<span class="muted">· {% blocktranslate with month=entry.ends_on|date:"F Y" %}until {{ month }}{% endblocktranslate %}</span>{% endif %}
+      </dd>
     </div>
     {% if entry.installment_total %}
       <div>
@@ -66,8 +69,9 @@
       <button type="submit" class="btn primary">{% translate "Save" %}</button>
     </div>
   </form>
+  {% if entry.is_recurring %}{% translate "Delete this entry from every month?" as msg %}{% else %}{% translate "Delete this entry?" as msg %}{% endif %}
   <form id="delete-entry" method="post" action="{% url 'delete_entry' entry.kind entry.pk %}"
-        onsubmit="return confirm('{% translate "Delete this entry?" as msg %}{{ msg|escapejs }}')">
+        data-confirm="{{ msg }}" data-confirm-detail="{{ entry.description }}">
     {% csrf_token %}
     <input type="hidden" name="next" value="{{ next }}">
   </form>

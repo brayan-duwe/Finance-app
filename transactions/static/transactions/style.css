@@ -8,7 +8,7 @@
   --accent: #1c1c1e;
   --accent-text: #ffffff;
   --positive: #2e8a57;
-  --negative: #c4473a;
+  --negative: #bb2716;
   --focus: #0969da;
   --radius: 16px;
 }
@@ -24,7 +24,7 @@
     --accent: #f2f2f3;
     --accent-text: #111113;
     --positive: #5cc489;
-    --negative: #ef7b6e;
+    --negative: #bb2716;
     --focus: #4493f8;
   }
 }
@@ -241,7 +241,7 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1p
 /* Header navigation */
 .nav { display: flex; align-items: center; gap: 20px; }
 .nav a.link { text-decoration: none; }
-.language-switch select { width: auto; padding: 6px 10px; background: var(--surface); font-size: 0.875rem; }
+.language-switch select { width: auto; padding: 6px 10px; background-color: var(--surface); font-size: 0.875rem; }
 
 /* Entry details */
 .eyebrow { color: var(--muted); font-size: 0.8rem; margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -251,7 +251,13 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1p
 .details dt { color: var(--muted); font-size: 0.875rem; }
 .details dd { margin: 0; overflow-wrap: anywhere; }
 .details code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; background: var(--bg); padding: 2px 6px; border-radius: 6px; }
-.btn.danger { color: var(--negative); }
+/* Danger buttons (Delete, Log out): grey with a light red tint, red text and border */
+.btn.danger {
+  background: color-mix(in srgb, var(--negative) 10%, var(--track));
+  border-color: var(--negative);
+  color: var(--negative);
+}
+.btn.danger:hover { opacity: 1; background: color-mix(in srgb, var(--negative) 20%, var(--track)); }
 .account { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .account h2, .account p { margin: 0; }
 .spacer { flex: 1; }
@@ -262,16 +268,6 @@ a.entry-main:hover .entry-desc { text-decoration: underline; }
   .details div { grid-template-columns: 1fr; gap: 2px; }
 }
 
-/* Messages */
-.messages { list-style: none; padding: 0; margin: 0 0 16px; }
-.message {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 10px 14px;
-  font-size: 0.9rem;
-}
-.message.error { color: var(--negative); }
 
 @media (max-width: 520px) {
   .card { padding: 18px; }
@@ -748,3 +744,489 @@ body.panel-open { overflow: hidden; }
 .legend-more:hover { color: var(--text); background: var(--bg); }
 .legend-more:focus-visible { outline: 2px solid var(--focus); }
 @media (prefers-reduced-motion: reduce) { .legend-entry-extra { animation: none; } }
+
+/* ---------- Notifications (toasts) ---------- */
+/* White in dark mode, dark in light mode: always the opposite of the page, so they stand out */
+.toasts {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  width: min(380px, calc(100% - 32px));
+  pointer-events: none;
+}
+.toast {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 10px 12px 14px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.9rem;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.3);
+  pointer-events: auto;
+  animation: toast-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.toast-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #6c8ebf;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.toast.success .toast-icon { background: #2e9e5b; }
+.toast.error .toast-icon { background: #d0453a; }
+.toast.warning .toast-icon { background: #d08a2a; }
+.toast-text { flex: 1; line-height: 1.4; overflow-wrap: anywhere; }
+.toast-close {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+}
+.toast-close:hover { opacity: 1; background: color-mix(in srgb, var(--bg) 10%, transparent); }
+.toast-close:focus-visible { outline: 2px solid var(--focus); opacity: 1; }
+
+/* A thin bar that shrinks until the toast goes away (pauses on hover) */
+.toast-timer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  background: currentColor;
+  opacity: 0.18;
+  transform-origin: left;
+  animation: toast-timer var(--toast-duration, 5s) linear forwards;
+}
+.toast.is-paused .toast-timer { animation-play-state: paused; }
+.toast.is-leaving { animation: toast-out 0.25s ease forwards; }
+
+@keyframes toast-in { from { opacity: 0; transform: translateY(16px) scale(0.97); } }
+@keyframes toast-out { to { opacity: 0; transform: translateX(24px); } }
+@keyframes toast-timer { to { transform: scaleX(0); } }
+
+/* Phones: across the bottom, above the round + button */
+@media (max-width: 640px) {
+  .toasts { right: 16px; left: 16px; bottom: 92px; width: auto; align-items: stretch; }
+  @keyframes toast-out { to { opacity: 0; transform: translateY(16px); } }
+}
+
+/* ---------- Confirmation dialog ---------- */
+.confirm-dialog {
+  width: min(400px, calc(100% - 32px));
+  padding: 26px 24px 20px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.35);
+}
+.confirm-dialog[open] { animation: dialog-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.confirm-dialog::backdrop { background: rgb(0 0 0 / 0.45); backdrop-filter: blur(2px); }
+.confirm-dialog[open]::backdrop { animation: backdrop-in 0.22s ease; }
+.confirm-title { margin: 0 0 6px; font-size: 1.05rem; font-weight: 600; }
+.confirm-detail {
+  margin: 0 auto 4px;
+  max-width: 300px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+.confirm-actions { display: flex; gap: 10px; margin-top: 22px; }
+.confirm-actions .btn { flex: 1; }
+.btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+@keyframes dialog-in { from { opacity: 0; transform: translateY(8px) scale(0.96); } }
+@keyframes backdrop-in { from { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast, .toast.is-leaving, .toast-timer, .confirm-dialog[open], .confirm-dialog[open]::backdrop { animation: none; }
+}
+
+/* =====================================================================
+   Motion system: one consistent feel for every hover, focus and press.
+   - Fast (150ms) for small colour changes, normal (200ms) for most things.
+   - "Ease out" curve: starts quick, settles softly (feels responsive, not floaty).
+   ===================================================================== */
+:root {
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --t-fast: 150ms;
+  --t: 200ms;
+}
+
+a, button, input, select, textarea,
+.btn, .icon-btn, .link, .muted-link, .chip, .fab,
+.menu a, .menu-trigger, .segmented a, .category-list a,
+.legend-entries a, .legend-more, .toast-close, .entry-desc {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform, text-decoration-color;
+  transition-duration: var(--t);
+  transition-timing-function: var(--ease);
+}
+.link, .muted-link, .segmented a, .toast-close, .entry-desc { transition-duration: var(--t-fast); }
+
+/* Buttons: a soft background change instead of fading out, and a small "press" */
+.btn:hover { opacity: 1; background: var(--track); }
+.btn.primary:hover { background: color-mix(in srgb, var(--accent) 88%, var(--bg)); }
+.btn.danger:hover { background: color-mix(in srgb, var(--negative) 20%, var(--track)); }
+.btn:active, .chip:active, .menu-trigger:active, .icon-btn:active, .legend-item:active { transform: scale(0.97); }
+
+.menu-trigger.primary:hover,
+.menu-trigger.primary[aria-expanded="true"] { opacity: 1; background: color-mix(in srgb, var(--accent) 88%, var(--bg)); }
+
+/* Round icon buttons (month arrows, ×): a light background appears */
+.icon-btn:hover { background: var(--track); color: var(--text); }
+.icon-btn.small:hover { background: var(--track); }
+
+/* Links */
+.muted-link:hover { color: var(--text); }
+
+/* Transactions: the name's underline fades in, instead of popping */
+.entry-desc { text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
+a.entry-main:hover .entry-desc { text-decoration-color: currentColor; }
+
+/* Menu items */
+.menu a:hover { background: var(--track); }
+
+/* Form fields: a soft glowing ring on focus, instead of a hard outline */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select {
+  transition-property: border-color, box-shadow, background-color;
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):hover, select:hover { border-color: var(--muted); }
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus, select:focus {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent);
+}
+
+/* Round + button on phones: lifts slightly */
+@media (hover: hover) {
+  .fab:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgb(0 0 0 / 0.3); }
+}
+.fab:active { transform: scale(0.95); }
+
+/* People who asked their system for less motion: instant changes, no movement */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; }
+  .btn:active, .chip:active, .menu-trigger:active, .icon-btn:active, .legend-item:active, .fab:active, .fab:hover { transform: none; }
+}
+
+/* ---------- Filter: sliding highlight + animated list ---------- */
+.segmented { position: relative; }
+.segmented a { position: relative; z-index: 1; }
+.segmented-indicator {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  width: 0;
+  border-radius: 7px;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
+  transition: transform 0.32s var(--ease-out), width 0.32s var(--ease-out);
+}
+/* With the sliding pill, the active link itself no longer needs a background */
+.segmented.has-indicator a[aria-current="true"] { background: transparent; box-shadow: none; }
+
+/* Transactions leaving / entering the list */
+.entry.is-leaving { opacity: 0; transform: translateY(-4px); transition: opacity 0.14s var(--ease), transform 0.14s var(--ease); }
+.entry.is-entering { animation: entry-fade-in 0.3s var(--ease-out) both; }
+@keyframes entry-fade-in { from { opacity: 0; transform: translateY(6px); } }
+
+/* The first *visible* row never has a line above it */
+.entries .entry:nth-child(1 of :not([hidden])) { border-top: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .segmented-indicator, .entry.is-leaving { transition: none; }
+  .entry.is-entering { animation: none; }
+}
+
+/* ---------- Header: gear icon for Settings ---------- */
+.icon-link {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+}
+.icon-link:hover, .icon-link[aria-current="page"] { background: var(--track); color: var(--text); }
+.icon-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.icon-link svg { transition: transform 0.4s var(--ease-out); }
+@media (hover: hover) { .icon-link:hover svg { transform: rotate(45deg); } }
+
+/* Tooltip below the gear */
+.icon-link[data-tooltip]:is(:hover, :focus-visible)::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.78rem;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: menu-in 0.12s ease-out 0.4s both;
+}
+
+/* ---------- Settings: tabs ---------- */
+.settings { max-width: 520px; margin: 0 auto; }
+.settings > h1 { margin-bottom: 14px; }
+.segmented.tabs { display: flex; margin-bottom: 16px; }
+.segmented.tabs a { flex: 1; justify-content: center; padding: 7px 12px; font-size: 0.9rem; }
+.settings .card { margin-bottom: 16px; }
+.settings .account { display: flex; }
+.tab-enter { animation: tab-in 0.28s var(--ease-out) both; }
+@keyframes tab-in { from { opacity: 0; transform: translateY(6px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-enter { animation: none; }
+  .icon-link:hover svg { transform: none; }
+}
+
+/* ---------- Native controls follow the theme ---------- */
+/* Tells the browser the page is light or dark, so its own parts (the calendar icon
+   and popup, scrollbars, checkboxes) use matching colours instead of black on dark. */
+:root { color-scheme: light dark; }
+
+/* Calendar icon in date fields */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  margin-right: 2px;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity var(--t-fast) var(--ease);
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="month"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+
+/* Dropdowns: our own arrow, the same distance from the edge as the calendar icon */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%236e6e73' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+  cursor: pointer;
+}
+@media (prefers-color-scheme: dark) {
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%239d9da3' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  }
+}
+/* Smaller dropdowns (review table, language switch) */
+.review select, .language-switch select { padding-right: 30px; background-position: right 9px center; background-size: 14px; }
+
+/* ---------- Date picker (our own calendar) ---------- */
+.datepicker-field { position: relative; }
+
+/* The field: looks like the other inputs */
+.date-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.date-display:hover { border-color: var(--muted); }
+.date-display:focus-visible, .date-display[aria-expanded="true"] {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent);
+}
+.date-display svg { flex-shrink: 0; color: var(--muted); transition: color var(--t-fast) var(--ease); }
+.date-display:hover svg, .date-display[aria-expanded="true"] svg { color: var(--text); }
+.date-display.is-empty .date-display-text { color: var(--muted); }
+.has-error .date-display { border-color: var(--negative); }
+.review .date-display { padding: 7px 9px; border-radius: 8px; font-size: 0.875rem; }
+.review .date-display svg { width: 15px; height: 15px; }
+
+/* The popup */
+.datepicker {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 70;
+  width: 304px;
+  padding: 14px 14px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 18px 44px rgb(0 0 0 / 0.32);
+  transform-origin: top left;
+  animation: dp-in 0.18s var(--ease-out);
+}
+.datepicker.is-above { top: auto; bottom: calc(100% + 8px); transform-origin: bottom left; }
+.datepicker.is-leaving { animation: dp-out 0.14s ease forwards; }
+
+.dp-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.dp-title { font-weight: 600; font-size: 0.95rem; }
+.dp-nav {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.dp-nav:hover { background: var(--track); color: var(--text); }
+.dp-nav:focus-visible { outline: 2px solid var(--focus); }
+
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.dp-weekday { padding: 6px 0; color: var(--muted); font-size: 0.72rem; font-weight: 500; text-align: center; text-transform: uppercase; }
+.dp-day {
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.dp-day:hover { background: var(--track); }
+.dp-day.is-outside { color: var(--muted); opacity: 0.45; }
+.dp-day.is-today { box-shadow: inset 0 0 0 1.5px var(--muted); font-weight: 600; }
+.dp-day.is-selected { background: var(--accent); color: var(--accent-text); font-weight: 600; box-shadow: none; }
+.dp-day:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+.dp-footer { display: flex; justify-content: flex-end; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.dp-today {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.dp-today:hover { background: var(--track); }
+.dp-today:focus-visible { outline: 2px solid var(--focus); }
+
+/* Changing month: the days slide in from the side you're going to */
+.dp-grid.slide-next .dp-day { animation: dp-slide-next 0.22s var(--ease-out); }
+.dp-grid.slide-prev .dp-day { animation: dp-slide-prev 0.22s var(--ease-out); }
+
+@keyframes dp-in { from { opacity: 0; transform: translateY(-4px) scale(0.97); } }
+@keyframes dp-out { to { opacity: 0; transform: translateY(-4px) scale(0.97); } }
+@keyframes dp-slide-next { from { opacity: 0; transform: translateX(10px); } }
+@keyframes dp-slide-prev { from { opacity: 0; transform: translateX(-10px); } }
+
+@media (max-width: 640px) {
+  .datepicker { width: min(304px, calc(100vw - 40px)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .datepicker, .datepicker.is-leaving, .dp-grid .dp-day { animation: none; }
+}
+
+/* ---------- Import review: groups ---------- */
+.review-group { margin-top: 24px; }
+.review-group-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.review-group-title .count {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--track);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.review-group-hint { flex-basis: 100%; color: var(--muted); font-size: 0.82rem; font-weight: 400; }
+
+/* Collapsible groups (Already registered / Payments and refunds) */
+.review-group.collapsible {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: color-mix(in srgb, var(--bg) 50%, transparent);
+}
+.review-group.collapsible > summary { cursor: pointer; list-style: none; margin: 0; padding-left: 22px; position: relative; }
+.review-group.collapsible > summary::-webkit-details-marker { display: none; }
+.review-group.collapsible > summary::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 7px;
+  width: 7px;
+  height: 7px;
+  border-right: 1.6px solid var(--muted);
+  border-bottom: 1.6px solid var(--muted);
+  transform: rotate(-45deg);
+  transition: transform var(--t) var(--ease);
+}
+.review-group.collapsible[open] > summary::before { transform: rotate(45deg); top: 5px; }
+.review-group.collapsible[open] > summary { margin-bottom: 8px; }
+.review-group.collapsible > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; border-radius: 6px; }
+.review-group.collapsible[open] > .review { animation: entry-fade-in 0.25s var(--ease-out); }
+
+/* A subscription whose price changed */
+.badge.attention { background: color-mix(in srgb, #d08a2a 18%, transparent); color: #d08a2a; font-weight: 500; }
+.note.note-attention { color: #d08a2a; }
+.inline-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.inline-check input { margin: 0; }
+/* Rows in the "registered" group stay readable even though they're unchecked */
+.review-group.collapsible .review tr.row-off td:not(.col-check) { opacity: 0.7; }
+
+/* Confirmation dialog: Delete has the focus, so Enter confirms. A soft red ring shows it. */
+.confirm-dialog .btn.danger:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--negative) 30%, transparent);
+}

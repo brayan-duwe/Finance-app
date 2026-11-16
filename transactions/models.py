@@ -144,16 +144,17 @@ class EntryQuerySet(models.QuerySet):
         """Entries that count in the given month.
 
         - One-time: the month of their date.
-        - Monthly: every month from their date onward.
-        - Yearly: once a year, in the month of their date.
+        - Monthly: every month from their date onward (until `ends_on`, if set).
+        - Yearly: once a year, in the month of their date (until `ends_on`, if set).
         - Installments: every month from the first to the last installment.
         """
         first_day = date(year, month, 1)
         last_day = date(year, month, calendar.monthrange(year, month)[1])
+        not_ended = Q(ends_on__isnull=True) | Q(ends_on__gte=first_day)
         return self.filter(
             Q(frequency=Frequency.ONCE, date__year=year, date__month=month)
-            | Q(frequency=Frequency.MONTHLY, date__lte=last_day)
-            | Q(frequency=Frequency.YEARLY, date__lte=last_day, date__month=month)
+            | (Q(frequency=Frequency.MONTHLY, date__lte=last_day) & not_ended)
+            | (Q(frequency=Frequency.YEARLY, date__lte=last_day, date__month=month) & not_ended)
             | Q(
                 frequency=Frequency.INSTALLMENTS,
                 first_installment_month__lte=first_day,
@@ -181,6 +182,9 @@ class Entry(models.Model):
     # The months the installments are paid in (first day of each month).
     first_installment_month = models.DateField(null=True, blank=True, editable=False)
     last_installment_month = models.DateField(null=True, blank=True, editable=False)
+    # Monthly/yearly entries can end: e.g. when a subscription's price changes, the old
+    # price ends in the previous month and a new entry starts with the new price.
+    ends_on = models.DateField(_("last month"), null=True, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     objects = EntryQuerySet.as_manager()
@@ -203,6 +207,8 @@ class Entry(models.Model):
         else:
             self.installment_total = None
             self.first_installment_month = self.last_installment_month = None
+        if self.frequency not in (Frequency.MONTHLY, Frequency.YEARLY):
+            self.ends_on = None
         super().save(*args, **kwargs)
 
     @property

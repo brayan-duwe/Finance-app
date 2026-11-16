@@ -186,6 +186,9 @@ class ImportRowForm(forms.Form):
         label=_("of"), min_value=2, max_value=120, required=False,
         widget=forms.NumberInput(attrs={"min": 2, "max": 120}),
     )
+    # A recognised subscription whose price changed: update its monthly amount?
+    recurring_id = forms.IntegerField(required=False, widget=forms.HiddenInput)
+    update_recurring = forms.BooleanField(required=False)
 
     def __init__(self, *args, categories, **kwargs):
         super().__init__(*args, **kwargs)

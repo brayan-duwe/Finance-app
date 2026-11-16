@@ -8,7 +8,7 @@
   <h1>{% translate "Review expenses" %}</h1>
   <p class="muted">
     {% blocktranslate count counter=formset|length with file=filename %}Found {{ counter }} transaction in <strong>{{ file }}</strong>.{% plural %}Found {{ counter }} transactions in <strong>{{ file }}</strong>.{% endblocktranslate %}
-    {% translate "Uncheck anything you don't want, fix names and categories, and mark bills that repeat. Payments, duplicates, and refunds together with the charges they cancel start unchecked." %}
+    {% translate "Check the new expenses below. What's already in your finances, and payments, are kept apart." %}
   </p>
 
   <form method="post" novalidate>
@@ -20,44 +20,62 @@
       {% with field=month_form.bill_month %}{% include "transactions/_field.html" %}{% endwith %}
     </div>
 
-    <table class="review">
-      <thead>
-        <tr>
-          <th class="col-check"><input type="checkbox" id="toggle-all" aria-label="{% translate 'Select all' %}" checked></th>
-          <th class="col-date">{% translate "Date" %}</th>
-          <th class="col-desc">{% translate "Description" %}</th>
-          <th class="col-amount">{% translate "Amount" %}</th>
-          <th class="col-cat">{% translate "Category" %}</th>
-          <th class="col-repeat">{% translate "Repeats" %}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for form in formset %}
-          <tr class="{% if not form.initial.include %}row-off{% endif %}{% if form.errors %} row-error{% endif %}">
-            <td class="col-check">{{ form.include }}</td>
-            <td class="col-date">{{ form.date }}</td>
-            <td class="col-desc">
-              {{ form.description }}{{ form.original_description }}
-              {% if form.initial.refunded_by %}<small class="note">{% blocktranslate with refund=form.initial.refunded_by %}Cancelled by the refund “{{ refund }}”{% endblocktranslate %}</small>
-              {% elif form.initial.refund_for %}<small class="note">{% blocktranslate with charge=form.initial.refund_for %}Refund of “{{ charge }}”{% endblocktranslate %}</small>
-              {% elif form.initial.duplicate %}<small class="note">{% translate "Already added" %}</small>
-              {% elif form.initial.counted_as_recurring %}<small class="note">{% translate "Already counted as recurring" %}</small>
-              {% elif form.initial.is_payment %}<small class="note">{% translate "Bill payment" %}</small>
-              {% elif form.initial.is_credit %}<small class="note">{% translate "Refund with no matching charge in this file" %}</small>{% endif %}
-              {% for field in form %}{% for error in field.errors %}<small class="error">{{ field.label|capfirst }}: {{ error }}</small>{% endfor %}{% endfor %}
-            </td>
-            <td class="col-amount">{{ form.amount }}</td>
-            <td class="col-cat">{{ form.category }}</td>
-            <td class="col-repeat">
-              {{ form.frequency }}
-              <div class="installment-inputs">
-                {{ form.installment_number }}<span>{% translate "of" %}</span>{{ form.installment_total }}
-              </div>
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    {# 1. New expenses: what will be added #}
+    <section class="review-group">
+      <h2 class="review-group-title">
+        {% translate "New expenses" %} <span class="count">{{ new_rows|length }}</span>
+      </h2>
+      {% if new_rows %}
+        <table class="review" data-review-table>
+          <thead>
+            <tr>
+              <th class="col-check"><input type="checkbox" data-toggle-all aria-label="{% translate 'Select all' %}" checked></th>
+              <th class="col-date">{% translate "Date" %}</th>
+              <th class="col-desc">{% translate "Description" %}</th>
+              <th class="col-amount">{% translate "Amount" %}</th>
+              <th class="col-cat">{% translate "Category" %}</th>
+              <th class="col-repeat">{% translate "Repeats" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for form in new_rows %}{% include "transactions/_review_row.html" %}{% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="muted">{% translate "Nothing new in this statement: everything is already in your finances." %}</p>
+      {% endif %}
+    </section>
+
+    {# 2. Already registered: subscriptions, installments and duplicates the app recognised #}
+    {% if registered_rows %}
+      <details class="review-group collapsible"{% if has_price_changes %} open{% endif %}>
+        <summary class="review-group-title">
+          {% translate "Already registered" %} <span class="count">{{ registered_rows|length }}</span>
+          {% if has_price_changes %}<span class="badge attention">{% translate "price changed" %}</span>{% endif %}
+          <span class="review-group-hint">{% translate "Subscriptions, installments and duplicates. They won't be added again." %}</span>
+        </summary>
+        <table class="review" data-review-table>
+          <tbody>
+            {% for form in registered_rows %}{% include "transactions/_review_row.html" %}{% endfor %}
+          </tbody>
+        </table>
+      </details>
+    {% endif %}
+
+    {# 3. Payments and refunds #}
+    {% if payment_rows %}
+      <details class="review-group collapsible">
+        <summary class="review-group-title">
+          {% translate "Payments and refunds" %} <span class="count">{{ payment_rows|length }}</span>
+          <span class="review-group-hint">{% translate "Bill payments, and refunds with the charges they cancel. Not counted as expenses." %}</span>
+        </summary>
+        <table class="review" data-review-table>
+          <tbody>
+            {% for form in payment_rows %}{% include "transactions/_review_row.html" %}{% endfor %}
+          </tbody>
+        </table>
+      </details>
+    {% endif %}
 
     <div class="form-actions">
       <button type="submit" form="cancel-import" class="btn">{% translate "Cancel" %}</button>
@@ -68,17 +86,22 @@
 </section>
 
 <script>
-  // Dim unchecked rows, and let the header checkbox select or clear every row.
-  const boxes = [...document.querySelectorAll('input[name$="-include"]')];
-  const toggleAll = document.getElementById("toggle-all");
-  const sync = () => {
-    boxes.forEach(b => b.closest("tr").classList.toggle("row-off", !b.checked));
-    toggleAll.checked = boxes.every(b => b.checked);
-    toggleAll.indeterminate = !toggleAll.checked && boxes.some(b => b.checked);
-  };
-  boxes.forEach(b => b.addEventListener("change", sync));
-  toggleAll.addEventListener("change", () => { boxes.forEach(b => (b.checked = toggleAll.checked)); sync(); });
-  sync();
+  // Dim unchecked rows. The header checkbox (in "New expenses") selects or clears its rows.
+  const allBoxes = [...document.querySelectorAll('input[name$="-include"]')];
+  const dim = () => allBoxes.forEach(b => b.closest("tr").classList.toggle("row-off", !b.checked));
+  allBoxes.forEach(b => b.addEventListener("change", dim));
+
+  document.querySelectorAll("[data-toggle-all]").forEach(toggleAll => {
+    const boxes = [...toggleAll.closest("table").querySelectorAll('input[name$="-include"]')];
+    const sync = () => {
+      toggleAll.checked = boxes.every(b => b.checked);
+      toggleAll.indeterminate = !toggleAll.checked && boxes.some(b => b.checked);
+    };
+    boxes.forEach(b => b.addEventListener("change", sync));
+    toggleAll.addEventListener("change", () => { boxes.forEach(b => (b.checked = toggleAll.checked)); dim(); sync(); });
+    sync();
+  });
+  dim();
 
   // Show "3 of 4" inputs only on rows set to Installments.
   document.querySelectorAll('select[name$="-frequency"]').forEach(select => {

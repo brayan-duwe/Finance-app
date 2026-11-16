@@ -18,7 +18,7 @@
       {% endfor %}
     </div>
     {% if field.name == "category" %}
-      <a class="muted-link manage-link" href="{% url 'user_settings' %}#categories">{% translate "Manage categories" %} →</a>
+      <a class="muted-link manage-link" href="{% url 'user_settings' %}?tab=categories">{% translate "Manage categories" %} →</a>
     {% endif %}
     {% if field.help_text %}<small class="help">{{ field.help_text }}</small>{% endif %}
     {% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}

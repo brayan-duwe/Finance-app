@@ -256,13 +256,15 @@ def review_post(response):
         "bill_month": response.context["month_form"].initial["bill_month"].strftime("%Y-%m"),
     }
     fields = ["date", "description", "original_description", "amount", "category", "frequency",
-              "installment_number", "installment_total"]
+              "installment_number", "installment_total", "recurring_id"]
     for i, f in enumerate(forms):
         for name in fields:
             value = f.initial.get(name)
             post[f"form-{i}-{name}"] = "" if value is None else str(value)
         if f.initial["include"]:
             post[f"form-{i}-include"] = "on"
+        if f.initial.get("update_recurring"):
+            post[f"form-{i}-update_recurring"] = "on"
     return post
 
 
@@ -685,3 +687,141 @@ class SeeAllTests(TestCase):
 
         self.client.post(reverse("user_settings"), {"language": "pt-br", "currency": "BRL"})
         self.assertContains(self.client.get(reverse("dashboard"), {"month": "2026-11"}), "Ver todas (7)")
+
+
+class ConfirmDialogAndToastTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("alex", password="a-long-password-123")
+        self.client.force_login(self.user)
+
+    def test_delete_buttons_use_our_dialog(self):
+        Income.objects.create(user=self.user, description="Vale-refeição", amount=Decimal("550"), date=TODAY, frequency=Frequency.MONTHLY)
+        response = self.client.get(reverse("dashboard"), {"month": "2026-11"})
+        self.assertContains(response, 'id="confirm-dialog"')
+        self.assertContains(response, 'data-confirm="Delete this entry from every month?" data-confirm-detail="Vale-refeição" data-next-current')
+        self.assertNotContains(response, "confirm(")
+
+    def test_messages_appear_as_toasts(self):
+        income = Income.objects.create(user=self.user, description="Vale-refeição", amount=Decimal("550"), date=TODAY)
+        response = self.client.post(reverse("delete_entry", args=["income", income.pk]),
+                                    {"next": "/?month=2026-11&type=income"}, follow=True)
+        self.assertRedirects(response, "/?month=2026-11&type=income")
+        self.assertContains(response, '<div class="toast success" role="status">')
+        self.assertContains(response, "Deleted “Vale-refeição”.")
+        self.assertContains(response, "data-toast-close")
+
+
+class GearAndSettingsTabsTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("alex", password="a-long-password-123")
+        self.client.force_login(self.user)
+
+    def test_header_has_a_gear_link_with_a_label(self):
+        response = self.client.get(reverse("dashboard"))
+        self.assertContains(response, 'class="icon-link" aria-label="Settings" data-tooltip="Settings"')
+
+    def test_general_tab_is_the_default(self):
+        response = self.client.get(reverse("user_settings"))
+        self.assertEqual(response.context["tab"], "general")
+        self.assertContains(response, '<section class="card" data-tab-panel="general">')
+        self.assertContains(response, 'data-tab-panel="account" hidden')
+        self.assertContains(response, 'data-tab="general" aria-current="true"')
+
+    def test_open_a_tab_from_the_address(self):
+        response = self.client.get(reverse("user_settings"), {"tab": "account"})
+        self.assertContains(response, '<section class="card account" data-tab-panel="account">')
+        self.assertContains(response, "Log out")
+        self.assertContains(response, 'data-tab-panel="general" hidden')
+        self.assertEqual(self.client.get(reverse("user_settings"), {"tab": "nope"}).context["tab"], "general")
+
+    def test_saving_returns_to_the_right_tab(self):
+        response = self.client.post(reverse("user_settings"), {"language": "en", "currency": "BRL"})
+        self.assertRedirects(response, "/settings/?tab=general")
+        response = self.client.post(f'{reverse("category_new")}?kind=expense', {"name": "Pets", "color": "#c9755b"})
+        self.assertRedirects(response, "/settings/?tab=categories")
+
+    def test_manage_categories_link_opens_the_categories_tab(self):
+        self.assertContains(self.client.get(reverse("add_expense")), "/settings/?tab=categories")
+
+
+
+class SubscriptionMatchingTests(TestCase):
+    """Next month's statement: subscriptions are recognised even when codes or prices change."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("alex", password="a-long-password-123")
+        self.client.force_login(self.user)
+        subs = cat(self.user, "subscriptions")
+        self.spotify = Expense.objects.create(
+            user=self.user, description="Spotify", original_description="DL*SPOTIFY P48A3",
+            amount=Decimal("23.90"), date=date(2026, 10, 30), frequency=Frequency.MONTHLY, category=subs)
+        self.claude = Expense.objects.create(
+            user=self.user, description="Claude", original_description="ANTHROPIC* CLAUDE SUB  SA",
+            amount=Decimal("116.22"), date=date(2026, 10, 20), frequency=Frequency.MONTHLY, category=subs)
+
+    def review(self, csv_text):
+        upload = SimpleUploadedFile("Fatura_dez.csv", csv_text.encode(), content_type="text/csv")
+        self.client.post(reverse("import_statement"), {"file": upload, "date_order": "dmy"})
+        return self.client.get(reverse("import_review"))
+
+    DECEMBER = (
+        "date,title,amount\n"
+        "2026-11-30,DL*SPOTIFY Q91B2,23.90\n"          # new bank code, same price
+        "2026-11-20,ANTHROPIC* CLAUDE SUB SA,119.08\n"  # dollar went up
+        "2026-11-20,ANTHROPIC* CLAUDE SUB SA,4.17\n"    # its IOF: not the subscription
+        "2026-12-02,Padaria Real,12.50\n"
+        "2026-12-03,Netflix,55.90\n"                    # a subscription the app doesn't know yet
+    )
+
+    def test_name_key_ignores_codes(self):
+        from .matching import name_key
+        self.assertEqual(name_key("DL*SPOTIFY P48A3"), "spotify")
+        self.assertEqual(name_key("ANTHROPIC* CLAUDE SUB  SA"), "anthropic claude sub")
+        self.assertEqual(name_key("JIM.COM* 62519589 APO"), "jim com apo")
+
+    def test_rows_are_grouped(self):
+        response = self.review(self.DECEMBER)
+        new = [f.initial["description"] for f in response.context["new_rows"]]
+        registered = [f.initial["description"] for f in response.context["registered_rows"]]
+        self.assertEqual(sorted(registered), ["ANTHROPIC* CLAUDE SUB SA", "DL*SPOTIFY Q91B2"])
+        self.assertEqual(sorted(new), ["ANTHROPIC* CLAUDE SUB SA", "Netflix", "Padaria Real"])  # the IOF is new
+        self.assertTrue(response.context["has_price_changes"])
+        self.assertContains(response, "price changed R$ 116,22 → R$ 119,08")
+
+    def test_price_change_keeps_past_months(self):
+        response = self.review(self.DECEMBER)
+        self.client.post(reverse("import_review"), review_post(response))
+
+        self.claude.refresh_from_db()
+        self.assertEqual(self.claude.ends_on, date(2026, 11, 1))  # old price ends in November
+        new_claude = Expense.objects.get(description="Claude", ends_on__isnull=True)
+        self.assertEqual((new_claude.amount, new_claude.date), (Decimal("119.08"), date(2026, 12, 20)))
+
+        def claude_in(month):
+            return [e.amount for e in Expense.objects.filter(user=self.user, description="Claude").for_month(2026, month)]
+        self.assertEqual(claude_in(11), [Decimal("116.22")])
+        self.assertEqual(claude_in(12), [Decimal("119.08")])
+
+        # Spotify (same price) wasn't touched or duplicated, and the new rows were added.
+        self.assertEqual(Expense.objects.filter(original_description__icontains="spotify").count(), 1)
+        self.assertTrue(Expense.objects.filter(description="Netflix").exists())
+
+    def test_unchecking_update_keeps_the_old_price(self):
+        response = self.review(self.DECEMBER)
+        post = review_post(response)
+        for key in [k for k in post if k.endswith("-update_recurring")]:
+            del post[key]
+        self.client.post(reverse("import_review"), post)
+        self.claude.refresh_from_db()
+        self.assertIsNone(self.claude.ends_on)
+        self.assertEqual(Expense.objects.filter(description="Claude").count(), 1)
+
+    def test_big_price_difference_is_not_the_same_subscription(self):
+        response = self.review("date,title,amount\n2026-12-01,DL*SPOTIFY X1,59.90\n")
+        self.assertEqual(len(response.context["registered_rows"]), 0)
+
+    def test_ended_subscriptions_are_not_matched(self):
+        self.spotify.ends_on = date(2026, 10, 1)
+        self.spotify.save()
+        response = self.review("date,title,amount\n2026-11-30,DL*SPOTIFY Q91B2,23.90\n")
+        self.assertEqual(len(response.context["new_rows"]), 1)
