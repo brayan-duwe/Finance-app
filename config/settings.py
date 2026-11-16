@@ -33,7 +33,24 @@ SECRET_KEY = os.environ['DJANGO_SECRET_KEY']
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = []
+# The addresses this site answers to. Render provides its own address automatically
+# (RENDER_EXTERNAL_HOSTNAME); add a custom domain with ALLOWED_HOSTS=finances.example.com.
+ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', '').split(',') if host.strip()]
+if os.environ.get('RENDER_EXTERNAL_HOSTNAME'):
+    ALLOWED_HOSTS.append(os.environ['RENDER_EXTERNAL_HOSTNAME'])
+if DEBUG:
+    ALLOWED_HOSTS += ['localhost', '127.0.0.1', '[::1]']
+# Forms (login, adding expenses...) are only accepted from these https addresses.
+CSRF_TRUSTED_ORIGINS = [f'https://{host}' for host in ALLOWED_HOSTS if host not in ('localhost', '127.0.0.1', '[::1]')]
+
+if not DEBUG:
+    # Production: HTTPS only. Render handles the certificate and tells Django the visit was https.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 3600  # browsers remember to use https (raise it once everything works)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 
 
 # Application definition
@@ -50,6 +67,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # serves CSS/JS in production
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -150,6 +168,15 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'  # where `collectstatic` gathers the files for production
+WHITENOISE_AUTOREFRESH = DEBUG  # while developing, serve files straight from the app folders
+
+if not DEBUG:
+    # Compressed files with a fingerprint in the name, so browsers can cache them safely.
+    STORAGES = {
+        'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+        'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
+    }
 
 
 # Accounts
@@ -164,13 +191,21 @@ DEFAULT_CURRENCY = 'BRL'  # for new users; each user can change it in Settings
 # AI assistant (needs ANTHROPIC_API_KEY in .env; without it the assistant explains how to turn it on)
 AI_MODEL = os.environ.get('AI_MODEL', 'claude-opus-5-5')
 AI_EFFORT = os.environ.get('AI_EFFORT', 'low')  # low = quick chat answers; medium/high = more thorough
+# Questions per user per day, to keep the API bill under control on a public site.
+# Staff accounts (like the one from createsuperuser) have no limit. 0 = no limit for anyone.
+AI_DAILY_LIMIT = int(os.environ.get('AI_DAILY_LIMIT', '20'))
 
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
+# While developing, emails are printed in the terminal. In production they'd go through SMTP
+# (the app doesn't send any email yet; configure the SMTP server here when it does).
 MAILERS = {
     'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
+        'BACKEND': (
+            'django.core.mail.backends.console.EmailBackend' if DEBUG
+            else 'django.core.mail.backends.smtp.EmailBackend'
+        ),
     },
 }

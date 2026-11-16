@@ -280,3 +280,17 @@ def get_profile(user):
     if created:
         ensure_default_categories(user)
     return profile
+
+
+class AssistantUsage(models.Model):
+    """How many questions a user asked the AI assistant on a day (for the daily limit)."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    day = models.DateField()
+    questions = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "day"], name="one_usage_row_per_user_and_day")]
+
+    def __str__(self):
+        return f"{self.user} · {self.day}: {self.questions}"

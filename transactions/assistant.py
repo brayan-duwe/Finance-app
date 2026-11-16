@@ -22,15 +22,15 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
-from django.db.models import Sum
+from django.db.models import F, Sum
 from django.urls import reverse
 from django.utils import formats, translation
 
 from .categorize import guess_category
 from .currencies import format_money, get_currency
 from .models import (
-    OTHER, Category, DefaultIncomeCategory, Expense, Frequency, Income, Kind, add_months, get_category,
-    get_profile,
+    OTHER, AssistantUsage, Category, DefaultIncomeCategory, Expense, Frequency, Income, Kind, add_months,
+    get_category, get_profile,
 )
 
 logger = logging.getLogger(__name__)
@@ -587,6 +587,8 @@ def ask(request, question, client=None, today=None):
     if len(messages) > MAX_STORED_MESSAGES:
         messages, display = [], []  # start fresh instead of editing old history
 
+    count_question(request.user)  # stops here if the daily limit is reached
+
     notes = request.session.pop(NOTES_KEY, [])
     sent = question if not notes else "[Note from the app: " + " ".join(notes) + "]\n\n" + question
     messages.append({"role": "user", "content": sent})
@@ -750,6 +752,25 @@ def _call_claude(client, system, messages):
         if settings.DEBUG:
             message += f" ({exc.status_code}: {exc.message})"
         raise AssistantError(message) from exc
+
+
+def count_question(user):
+    """Count one question for today, or refuse if the user already reached AI_DAILY_LIMIT.
+
+    Staff accounts (the site owner) have no limit, and AI_DAILY_LIMIT=0 turns the limit off.
+    """
+    limit = settings.AI_DAILY_LIMIT
+    if user.is_staff or limit <= 0:
+        return
+    usage, _created = AssistantUsage.objects.get_or_create(user=user, day=date.today())
+    if usage.questions >= limit:
+        raise AssistantError(translation.ngettext(
+            "You've reached today's limit of %(limit)d question. Come back tomorrow!",
+            "You've reached today's limit of %(limit)d questions. Come back tomorrow!",
+            limit,
+        ) % {"limit": limit})
+    # Counted in the database itself, so two questions at the same time can't both slip through.
+    AssistantUsage.objects.filter(pk=usage.pk).update(questions=F("questions") + 1)
 
 
 def reset(request):

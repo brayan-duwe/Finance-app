@@ -62,6 +62,7 @@ Abra http://127.0.0.1:8000, crie uma conta e adicione seu salário.
 | `ANTHROPIC_API_KEY` | Não | Liga o assistente de IA. Sem ela, o app funciona normalmente, só sem o assistente. |
 | `AI_MODEL` | Não | Modelo do Claude. Padrão: `claude-opus-5-5`. Para gastar menos: `claude-haiku-5-5`. |
 | `AI_EFFORT` | Não | `low` (padrão, respostas rápidas), `medium` ou `high`. |
+| `AI_DAILY_LIMIT` | Não | Perguntas por usuário por dia (padrão 20, `0` = sem limite). Contas de administrador não têm limite. |
 
 O `.env` tem segredos e **nunca** vai para o Git. O `.env.example` é só o modelo.
 
@@ -80,6 +81,15 @@ python manage.py test transactions
 ```
 
 Os testes usam um Claude simulado, então não precisam de chave nem geram custo.
+
+## Publicar no Render
+
+1. Crie um **Web Service** no [Render](https://render.com) a partir do repositório no GitHub.
+2. **Build command:** `pip install -r requirements.txt && python manage.py collectstatic --no-input && python manage.py migrate`
+3. **Start command:** `gunicorn config.wsgi:application`
+4. **Variáveis de ambiente:** `DJANGO_SECRET_KEY` (uma chave nova), `DATABASE_URL`, `PYTHON_VERSION=3.14.6` e, para o assistente, `ANTHROPIC_API_KEY` (e opcionalmente `AI_MODEL`, `AI_DAILY_LIMIT`). Não defina `DJANGO_DEBUG`.
+
+O endereço do Render é liberado automaticamente. Para um domínio próprio, adicione `ALLOWED_HOSTS`.
 
 ## Estrutura
 
@@ -165,6 +175,7 @@ Open http://127.0.0.1:8000, create an account and add your salary.
 | `ANTHROPIC_API_KEY` | No | Turns on the AI assistant. Without it, the app works normally, just without the assistant. |
 | `AI_MODEL` | No | The Claude model. Default: `claude-opus-5-5`. To spend less: `claude-haiku-5-5`. |
 | `AI_EFFORT` | No | `low` (default, quick answers), `medium` or `high`. |
+| `AI_DAILY_LIMIT` | No | Questions per user per day (default 20, `0` = no limit). Admin accounts have no limit. |
 
 `.env` holds secrets and is **never** committed to Git. `.env.example` is just the template.
 
@@ -183,6 +194,15 @@ python manage.py test transactions
 ```
 
 The tests use a simulated Claude, so they need no key and cost nothing.
+
+## Deploying to Render
+
+1. Create a **Web Service** on [Render](https://render.com) from the GitHub repository.
+2. **Build command:** `pip install -r requirements.txt && python manage.py collectstatic --no-input && python manage.py migrate`
+3. **Start command:** `gunicorn config.wsgi:application`
+4. **Environment variables:** `DJANGO_SECRET_KEY` (a new key), `DATABASE_URL`, `PYTHON_VERSION=3.14.6` and, for the assistant, `ANTHROPIC_API_KEY` (optionally `AI_MODEL`, `AI_DAILY_LIMIT`). Don't set `DJANGO_DEBUG`.
+
+Render's own address is allowed automatically. For a custom domain, add `ALLOWED_HOSTS`.
 
 ## Project structure
 

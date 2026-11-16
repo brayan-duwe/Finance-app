@@ -1180,6 +1180,33 @@ class AssistantTests(TestCase):
                                     headers={"X-Requested-With": "fetch"})
         self.assertEqual(response.json(), {"message": "Deleted “Uber *Trip”."})
 
+    # --- Daily question limit (public site) ---
+
+    def test_daily_limit_for_visitors(self):
+        with self.settings(AI_DAILY_LIMIT=2):
+            for _ in range(2):
+                response = self.ask(FakeClaude([FakeResponse("end_turn", [{"type": "text", "text": "Ok."}])]), "Hi")
+                self.assertEqual(response.json()["reply"], "Ok.")
+            fake = FakeClaude([])
+            response = self.ask(fake, "One more?")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("today's limit of 2 questions", response.json()["error"])
+        self.assertEqual(fake.requests, [])  # Claude wasn't called, so it cost nothing
+
+    def test_no_limit_for_the_site_owner(self):
+        self.user.is_staff = True
+        self.user.save()
+        with self.settings(AI_DAILY_LIMIT=1):
+            for _ in range(3):
+                response = self.ask(FakeClaude([FakeResponse("end_turn", [{"type": "text", "text": "Ok."}])]), "Hi")
+                self.assertEqual(response.json()["reply"], "Ok.")
+
+    def test_limit_zero_means_unlimited(self):
+        with self.settings(AI_DAILY_LIMIT=0):
+            for _ in range(3):
+                response = self.ask(FakeClaude([FakeResponse("end_turn", [{"type": "text", "text": "Ok."}])]), "Hi")
+                self.assertEqual(response.status_code, 200)
+
     def test_tool_schemas_follow_the_api_rules(self):
         """The fake Claude in these tests doesn't check schemas, so check the rules the real API enforces."""
         from .assistant import TOOLS
