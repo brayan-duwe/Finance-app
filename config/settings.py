@@ -199,6 +199,19 @@ AI_DAILY_LIMIT = int(os.environ.get('AI_DAILY_LIMIT', '20'))
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
+# Logs: print errors (with the full traceback) to the console, also in production.
+# By default Django only emails them when DEBUG is off, so on Render a "Server Error (500)"
+# would leave no trace in the logs.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {'console': {'class': 'logging.StreamHandler'}},
+    'root': {'handlers': ['console'], 'level': 'WARNING'},
+    'loggers': {
+        'django': {'handlers': ['console'], 'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO'), 'propagate': False},
+    },
+}
+
 # While developing, emails are printed in the terminal. In production they'd go through SMTP
 # (the app doesn't send any email yet; configure the SMTP server here when it does).
 MAILERS = {
