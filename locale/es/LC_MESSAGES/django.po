@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-15 23:04+0000\n"
+"POT-Creation-Date: 2026-11-16 15:29+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -218,7 +218,7 @@ msgstr "Comisiones e impuestos"
 msgid "Other"
 msgstr "Otros"
 
-#: transactions/models.py:52 transactions/views.py:270
+#: transactions/models.py:52 transactions/views.py:280
 msgid "Salary"
 msgstr "Sueldo"
 
@@ -238,12 +238,17 @@ msgstr "Regalos"
 msgid "Refunds"
 msgstr "Reembolsos"
 
-#: transactions/models.py:61 transactions/views.py:211
+#: transactions/models.py:61
+#: transactions/templates/transactions/dashboard.html:136
+#: transactions/templates/transactions/dashboard.html:139
+#: transactions/views.py:220
 msgid "Expenses"
 msgstr "Gastos"
 
 #: transactions/models.py:62 transactions/templates/base.html:41
-#: transactions/views.py:212
+#: transactions/templates/transactions/dashboard.html:136
+#: transactions/templates/transactions/dashboard.html:140
+#: transactions/views.py:221
 msgid "Income"
 msgstr "Ingreso"
 
@@ -264,7 +269,6 @@ msgid "number of installments"
 msgstr "número de cuotas"
 
 #: transactions/models.py:187
-#| msgid "Next month"
 msgid "last month"
 msgstr "último mes"
 
@@ -374,9 +378,9 @@ msgstr "Nuevo"
 msgid "Cancel"
 msgstr "Cancelar"
 
-#: transactions/templates/base.html:106
+#: transactions/templates/base.html:107
 #: transactions/templates/transactions/category_form.html:16
-#: transactions/templates/transactions/dashboard.html:151
+#: transactions/templates/transactions/dashboard.html:185
 #: transactions/templates/transactions/entry_detail.html:67
 msgid "Delete"
 msgstr "Eliminar"
@@ -442,7 +446,6 @@ msgstr "Reembolso de “%(charge)s”"
 
 #: transactions/templates/transactions/_review_row.html:11
 #, python-format
-#| msgid "Already counted as recurring"
 msgid "Already counted as recurring · price changed %(old)s → %(new)s"
 msgstr "Ya contado como recurrente · el precio cambió de %(old)s a %(new)s"
 
@@ -494,79 +497,108 @@ msgstr ""
 msgid "Back to this month"
 msgstr "Volver a este mes"
 
+#: transactions/templates/transactions/dashboard.html:16
+msgid "Chart view"
+msgstr "Vista del gráfico"
+
+#: transactions/templates/transactions/dashboard.html:17
+#| msgid "Monthly"
+msgid "Month"
+msgstr "Mes"
+
 #: transactions/templates/transactions/dashboard.html:18
+msgid "Trend"
+msgstr "Tendencia"
+
+#: transactions/templates/transactions/dashboard.html:24
 #, python-format
 msgid "Spent %(spent)s of %(income)s"
 msgstr "Gastaste %(spent)s de %(income)s"
 
-#: transactions/templates/transactions/dashboard.html:32
+#: transactions/templates/transactions/dashboard.html:38
 #, python-format
 msgid "%(amount)s over budget"
 msgstr "%(amount)s sobre el presupuesto"
 
-#: transactions/templates/transactions/dashboard.html:34
+#: transactions/templates/transactions/dashboard.html:40
 #, python-format
 msgid "of %(income)s"
 msgstr "de %(income)s"
 
-#: transactions/templates/transactions/dashboard.html:47
+#: transactions/templates/transactions/dashboard.html:53
 #, python-format
 msgid "%(income_pct)s%% of income · %(spend_pct)s%% of spending"
 msgstr "%(income_pct)s%% del ingreso · %(spend_pct)s%% de los gastos"
 
-#: transactions/templates/transactions/dashboard.html:78
+#: transactions/templates/transactions/dashboard.html:84
 #, python-format
 msgid "See all (%(count)s)"
 msgstr "Ver todas (%(count)s)"
 
-#: transactions/templates/transactions/dashboard.html:80
+#: transactions/templates/transactions/dashboard.html:86
 msgid "Show less"
 msgstr "Mostrar menos"
 
-#: transactions/templates/transactions/dashboard.html:87
+#: transactions/templates/transactions/dashboard.html:93
 msgid "Left"
 msgstr "Queda"
 
-#: transactions/templates/transactions/dashboard.html:88
+#: transactions/templates/transactions/dashboard.html:94
 #, python-format
 msgid "%(income_pct)s%% of income"
 msgstr "%(income_pct)s%% del ingreso"
 
-#: transactions/templates/transactions/dashboard.html:106
+#: transactions/templates/transactions/dashboard.html:112
 msgid "Add your salary to see where your money goes this month."
 msgstr "Agrega tu sueldo para ver a dónde va tu dinero este mes."
 
-#: transactions/templates/transactions/dashboard.html:107
+#: transactions/templates/transactions/dashboard.html:113
 msgid "Add salary"
 msgstr "Agregar sueldo"
 
-#: transactions/templates/transactions/dashboard.html:114
+#: transactions/templates/transactions/dashboard.html:123
+#| msgid "Add an income"
+msgid "Spending and income"
+msgstr "Gastos e ingresos"
+
+#: transactions/templates/transactions/dashboard.html:129
+msgid "Period"
+msgstr "Período"
+
+#: transactions/templates/transactions/dashboard.html:137
+msgid ""
+"Not enough data yet. Add expenses or import a statement to see your trend."
+msgstr ""
+"Aún no hay datos suficientes. Agrega gastos o importa un estado de cuenta "
+"para ver tu tendencia."
+
+#: transactions/templates/transactions/dashboard.html:148
 msgid "Transactions"
 msgstr "Movimientos"
 
-#: transactions/templates/transactions/dashboard.html:117
+#: transactions/templates/transactions/dashboard.html:151
 msgid "Filter transactions"
 msgstr "Filtrar movimientos"
 
-#: transactions/templates/transactions/dashboard.html:146
+#: transactions/templates/transactions/dashboard.html:180
 #: transactions/templates/transactions/entry_detail.html:72
 msgid "Delete this entry from every month?"
 msgstr "¿Eliminar este registro de todos los meses?"
 
-#: transactions/templates/transactions/dashboard.html:146
+#: transactions/templates/transactions/dashboard.html:180
 #: transactions/templates/transactions/entry_detail.html:72
 msgid "Delete this entry?"
 msgstr "¿Eliminar este registro?"
 
-#: transactions/templates/transactions/dashboard.html:156
+#: transactions/templates/transactions/dashboard.html:190
 msgid "No expenses this month."
 msgstr "No hay gastos este mes."
 
-#: transactions/templates/transactions/dashboard.html:157
+#: transactions/templates/transactions/dashboard.html:191
 msgid "No income this month."
 msgstr "No hay ingresos este mes."
 
-#: transactions/templates/transactions/dashboard.html:159
+#: transactions/templates/transactions/dashboard.html:193
 msgid "Nothing here yet. Use “+ Add” to import a statement or add an expense."
 msgstr ""
 "Aún no hay nada. Usa “+ Agregar” para importar un estado de cuenta o agregar"
@@ -647,7 +679,6 @@ msgstr ""
 "quedan aparte."
 
 #: transactions/templates/transactions/import_review.html:26
-#| msgid "Review expenses"
 msgid "New expenses"
 msgstr "Gastos nuevos"
 
@@ -672,7 +703,6 @@ msgid "Nothing new in this statement: everything is already in your finances."
 msgstr "Nada nuevo en este estado de cuenta: todo ya está en tus finanzas."
 
 #: transactions/templates/transactions/import_review.html:53
-#| msgid "Already added"
 msgid "Already registered"
 msgstr "Ya registrados"
 
@@ -731,7 +761,7 @@ msgstr[0] "%(counter)s registro"
 msgstr[1] "%(counter)s registros"
 
 #: transactions/templates/transactions/settings.html:53
-#: transactions/views.py:70
+#: transactions/views.py:71
 msgid "Account"
 msgstr "Cuenta"
 
@@ -744,66 +774,66 @@ msgstr "Sesión iniciada como %(name)s"
 msgid "Log out"
 msgstr "Cerrar sesión"
 
-#: transactions/views.py:52
+#: transactions/views.py:53
 msgid "Welcome! Start by adding your salary."
 msgstr "¡Bienvenido! Empieza agregando tu sueldo."
 
-#: transactions/views.py:65
+#: transactions/views.py:66
 msgid "Settings saved."
 msgstr "Configuración guardada."
 
-#: transactions/views.py:70
+#: transactions/views.py:71
 msgid "General"
 msgstr "General"
 
-#: transactions/views.py:70
+#: transactions/views.py:71
 msgid "Categories"
 msgstr "Categorías"
 
-#: transactions/views.py:114 transactions/views.py:286
+#: transactions/views.py:115 transactions/views.py:296
 #, python-format
 msgid "Saved “%(name)s”."
 msgstr "Se guardó “%(name)s”."
 
-#: transactions/views.py:117
+#: transactions/views.py:118
 msgid "Edit category"
 msgstr "Editar categoría"
 
-#: transactions/views.py:118
+#: transactions/views.py:119
 msgid "New expense category"
 msgstr "Nueva categoría de gasto"
 
-#: transactions/views.py:118
+#: transactions/views.py:119
 msgid "New income category"
 msgstr "Nueva categoría de ingreso"
 
-#: transactions/views.py:134
+#: transactions/views.py:135
 msgid "The “Other” category can't be deleted."
 msgstr "La categoría “Otros” no se puede eliminar."
 
-#: transactions/views.py:141 transactions/views.py:306
+#: transactions/views.py:142 transactions/views.py:316
 #, python-format
 msgid "Deleted “%(name)s”."
 msgstr "Se eliminó “%(name)s”."
 
-#: transactions/views.py:210
+#: transactions/views.py:219
 msgid "All"
 msgstr "Todas"
 
-#: transactions/views.py:255
+#: transactions/views.py:265
 #, python-format
 msgid "Added “%(name)s”."
 msgstr "Se agregó “%(name)s”."
 
-#: transactions/views.py:263
+#: transactions/views.py:273
 msgid "Add an expense"
 msgstr "Agregar un gasto"
 
-#: transactions/views.py:271
+#: transactions/views.py:281
 msgid "Add an income"
 msgstr "Agregar un ingreso"
 
-#: transactions/views.py:333
+#: transactions/views.py:343
 msgid ""
 "No transactions were found in this file. Try your bank's CSV export, or "
 "check the date format and the currency in Settings."
@@ -811,18 +841,18 @@ msgstr ""
 "No se encontraron movimientos en este archivo. Prueba el CSV de tu banco, o "
 "revisa el formato de fecha y la moneda en Configuración."
 
-#: transactions/views.py:470
+#: transactions/views.py:480
 msgid "Upload a statement first."
 msgstr "Primero sube un estado de cuenta."
 
-#: transactions/views.py:523
+#: transactions/views.py:533
 #, python-format
 msgid "Added %(count)d expense from %(file)s."
 msgid_plural "Added %(count)d expenses from %(file)s."
 msgstr[0] "Se agregó %(count)d gasto de %(file)s."
 msgstr[1] "Se agregaron %(count)d gastos de %(file)s."
 
-#: transactions/views.py:529
+#: transactions/views.py:539
 #, python-format
 msgid "Updated the price of %(count)d subscription."
 msgid_plural "Updated the price of %(count)d subscriptions."

@@ -143,6 +143,10 @@ LOGOUT_REDIRECT_URL = 'login'
 # Finances app
 DEFAULT_CURRENCY = 'BRL'  # for new users; each user can change it in Settings
 
+# AI assistant (needs ANTHROPIC_API_KEY in .env; without it the assistant explains how to turn it on)
+AI_MODEL = os.environ.get('AI_MODEL', 'claude-opus-5-5')
+AI_EFFORT = os.environ.get('AI_EFFORT', 'low')  # low = quick chat answers; medium/high = more thorough
+
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration

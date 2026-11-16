@@ -18,8 +18,10 @@ from django.utils.translation import gettext as _
 from django.utils.translation import ngettext
 from django.views.decorators.http import require_POST
 
+from . import assistant
 from .categorize import guess_category
-from .charts import build_donut
+from .charts import build_donut, build_trend
+from .currencies import get_currency
 from .forms import (
     BillMonthForm, CategoryForm, ExpenseForm, ImportRowFormSet, IncomeForm, ProfileForm,
     StatementUploadForm,
@@ -165,6 +167,14 @@ def _safe_next(request, url):
     return None
 
 
+def _trend_with_currency(request, month):
+    """Trend data plus how to write amounts, for the line chart's JavaScript."""
+    trend = build_trend(request.user, month)
+    currency = get_currency(get_profile(request.user).currency)
+    trend["currency"] = {key: currency[key] for key in ("symbol", "decimal", "thousands", "space")}
+    return trend
+
+
 @login_required
 def dashboard(request):
     month = _selected_month(request)
@@ -219,6 +229,7 @@ def dashboard(request):
         "is_current_month": month == date.today().replace(day=1),
         "income_total": income_total,
         "chart": chart,
+        "trend": _trend_with_currency(request, month),
         "entries": entries,
     })
 
@@ -303,7 +314,10 @@ def delete_entry(request, kind, pk):
         raise Http404
     entry = get_object_or_404(ENTRY_MODELS[kind], pk=pk, user=request.user)
     entry.delete()
-    messages.success(request, _("Deleted “%(name)s”.") % {"name": entry.description})
+    message = _("Deleted “%(name)s”.") % {"name": entry.description}
+    if request.headers.get("X-Requested-With") == "fetch":  # from the assistant's cards: answer with JSON
+        return JsonResponse({"message": message})
+    messages.success(request, message)
     next_url = _safe_next(request, request.POST.get("next"))
     if next_url and reverse("entry_detail", args=[kind, pk]) in next_url:
         next_url = None  # don't go back to the page of the entry we just deleted
@@ -555,3 +569,48 @@ def import_review(request):
 def import_cancel(request):
     request.session.pop(IMPORT_SESSION_KEY, None)
     return redirect("dashboard")
+
+
+# --- AI assistant ----------------------------------------------------------
+
+
+@require_POST
+@login_required
+def assistant_ask(request):
+    """One question from the ask bar. Answers with JSON: {"reply": "..."} or {"error": "..."}."""
+    if not assistant.is_configured():
+        return JsonResponse({"configured": False, "reply": _(
+            "The assistant isn't set up yet. Add your Anthropic API key to the .env file "
+            "(ANTHROPIC_API_KEY=…) and restart the server to turn it on."
+        )})
+    try:
+        reply, drafts = assistant.ask(request, request.POST.get("message", ""))
+    except assistant.AssistantError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    return JsonResponse({"configured": True, "reply": reply, "drafts": drafts})
+
+
+@require_POST
+@login_required
+def assistant_draft_action(request, draft_id, action):
+    """The Add / Cancel buttons on a card the assistant prepared."""
+    if action not in ("confirm", "cancel"):
+        raise Http404
+    try:
+        draft, message = assistant.resolve_draft(request, draft_id, confirm=action == "confirm")
+    except assistant.AssistantError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    return JsonResponse({"status": draft["status"], "message": message})
+
+
+@login_required
+def assistant_history(request):
+    """The current conversation, to show it again after a page reload."""
+    return JsonResponse({"messages": request.session.get(assistant.DISPLAY_KEY, [])})
+
+
+@require_POST
+@login_required
+def assistant_reset(request):
+    assistant.reset(request)
+    return JsonResponse({"ok": True})

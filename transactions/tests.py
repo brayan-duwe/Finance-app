@@ -1,5 +1,7 @@
+import json
 from datetime import date
 from decimal import Decimal
+from unittest import mock
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -10,7 +12,7 @@ from .categorize import guess_category
 from .currencies import format_money
 from .models import Category as CategoryModel
 from .models import DefaultExpenseCategory as Category
-from .models import Expense, Frequency, Income, ensure_default_categories, get_category, get_profile
+from .models import Expense, Frequency, Income, add_months, ensure_default_categories, get_category, get_profile
 from .parsers import parse_amount, parse_csv, parse_date, parse_installment, parse_line
 
 TODAY = date(2026, 11, 14)
@@ -634,8 +636,9 @@ class DonutCenterAndFilterTests(TestCase):
     def test_filter_counts_and_hidden_entries(self):
         response = self.dashboard(type="income")
         self.assertEqual(response.context["filters"], [("all", "All", 2), ("expense", "Expenses", 1), ("income", "Income", 1)])
-        self.assertContains(response, '<li class="entry" data-kind="expense" hidden>')
-        self.assertContains(response, '<li class="entry" data-kind="income">')
+        html = response.content.decode()
+        self.assertRegex(html, r'<li class="entry" data-kind="expense" data-search="[^"]*" hidden>')
+        self.assertRegex(html, r'<li class="entry" data-kind="income" data-search="[^"]*">')
         self.assertContains(response, 'data-filter="income" aria-current="true"')
         # Month arrows keep the filter.
         self.assertContains(response, "?month=2026-10&amp;type=income")
@@ -648,8 +651,17 @@ class DonutCenterAndFilterTests(TestCase):
     def test_unknown_filter_means_all(self):
         response = self.dashboard(type="nonsense")
         self.assertEqual(response.context["active_filter"], "all")
-        self.assertContains(response, '<li class="entry" data-kind="expense">')
-        self.assertContains(response, '<li class="entry" data-kind="income">')
+        html = response.content.decode()
+        self.assertRegex(html, r'<li class="entry" data-kind="expense" data-search="[^"]*">')
+        self.assertRegex(html, r'<li class="entry" data-kind="income" data-search="[^"]*">')
+
+    def test_entries_have_search_text(self):
+        Expense.objects.create(user=self.user, description="Uber", original_description="UBER *TRIP HELP.UBER.COM",
+                               amount=Decimal("20"), date=date(2026, 11, 5), category=cat(self.user, "transport"))
+        response = self.dashboard()
+        self.assertContains(response, 'data-search="Uber UBER *TRIP HELP.UBER.COM Transport"')
+        self.assertContains(response, "data-transactions-search")
+        self.assertContains(response, "data-empty-search")
 
 
 class LegendListTests(TestCase):
@@ -825,3 +837,382 @@ class SubscriptionMatchingTests(TestCase):
         self.spotify.save()
         response = self.review("date,title,amount\n2026-11-30,DL*SPOTIFY Q91B2,23.90\n")
         self.assertEqual(len(response.context["new_rows"]), 1)
+
+
+class TrendTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("alex", password="a-long-password-123")
+        self.client.force_login(self.user)
+
+    def test_monthly_totals_for_the_line_chart(self):
+        from .charts import build_trend
+        food = cat(self.user, "food")
+        Income.objects.create(user=self.user, description="Salary", amount=Decimal("2000"), date=date(2026, 9, 5), frequency=Frequency.MONTHLY)
+        Expense.objects.create(user=self.user, description="Rent", amount=Decimal("800"), date=date(2026, 10, 1), frequency=Frequency.MONTHLY)
+        Expense.objects.create(user=self.user, description="Dinner", amount=Decimal("120"), date=date(2026, 11, 3), category=food)
+
+        months = build_trend(self.user, date(2026, 11, 1), months=3)["months"]
+        self.assertEqual([m["month"] for m in months], ["2026-09", "2026-10", "2026-11"])
+        self.assertEqual([m["income"] for m in months], [2000.0, 2000.0, 2000.0])
+        self.assertEqual([m["expenses"] for m in months], [0.0, 800.0, 920.0])
+        self.assertEqual(months[2]["categories"][str(food.pk)], 120.0)
+
+    def test_dashboard_has_the_trend_view(self):
+        Income.objects.create(user=self.user, description="Salary", amount=Decimal("2000"), date=date(2026, 9, 5), frequency=Frequency.MONTHLY)
+        Expense.objects.create(user=self.user, description="Dinner", amount=Decimal("120"), date=date(2026, 11, 3))
+        response = self.client.get(reverse("dashboard"), {"month": "2026-11"})
+        self.assertContains(response, 'data-view="trend"')
+        self.assertContains(response, '<script id="trend-data" type="application/json">')
+        self.assertEqual(len(response.context["trend"]["months"]), 12)
+        self.assertEqual(response.context["trend"]["currency"]["symbol"], "R$")
+        self.assertContains(response, 'data-category-id="')
+
+
+class FakeResponse:
+    def __init__(self, stop_reason, content):
+        self.stop_reason = stop_reason
+        self._content = content
+
+    def to_dict(self):
+        return {"content": self._content}
+
+
+class FakeClaude:
+    """Stands in for anthropic.Anthropic(): returns prepared responses and records the requests."""
+
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.requests = []
+        self.beta = self
+        self.messages = self
+
+    def create(self, **kwargs):
+        self.requests.append(json.loads(json.dumps(kwargs, default=str)))  # a snapshot, like sending it
+        return self.responses.pop(0)
+
+
+class AssistantTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("alex", password="a-long-password-123")
+        self.client.force_login(self.user)
+        today = date.today()
+        self.month = today.replace(day=1)
+        Income.objects.create(user=self.user, description="Salary", amount=Decimal("3000"), date=self.month, frequency=Frequency.MONTHLY)
+        Expense.objects.create(user=self.user, description="Uber *Trip", amount=Decimal("25.50"), date=self.month, category=cat(self.user, "transport"))
+        Expense.objects.create(user=self.user, description="Spotify", amount=Decimal("23.90"), date=self.month, frequency=Frequency.MONTHLY, category=cat(self.user, "subscriptions"))
+
+    def ask(self, fake, question="Where am I spending the most?"):
+        with mock.patch("transactions.assistant.is_configured", return_value=True), \
+             mock.patch("transactions.assistant.get_client", return_value=fake):
+            return self.client.post(reverse("assistant_ask"), {"message": question})
+
+    def test_without_api_key_it_explains_how_to_turn_it_on(self):
+        with mock.patch("transactions.assistant.is_configured", return_value=False):
+            response = self.client.post(reverse("assistant_ask"), {"message": "Hi"})
+        self.assertFalse(response.json()["configured"])
+        self.assertIn("ANTHROPIC_API_KEY", response.json()["reply"])
+
+    def test_answer_with_a_tool_call(self):
+        fake = FakeClaude([
+            FakeResponse("tool_use", [
+                {"type": "text", "text": "Let me check."},
+                {"type": "tool_use", "id": "toolu_1", "name": "month_summary", "input": {"month": None}},
+            ]),
+            FakeResponse("end_turn", [{"type": "text", "text": "Your biggest category is **Transport**."}]),
+        ])
+        with self.settings(AI_MODEL="claude-opus-5-5", AI_EFFORT="low"):  # not whatever is in your .env
+            response = self.ask(fake)
+        self.assertEqual(response.json(), {"configured": True, "reply": "Your biggest category is **Transport**.", "drafts": []})
+
+        # The tool result Claude received has the real numbers for this user.
+        tool_result = fake.requests[1]["messages"][-1]["content"][0]
+        self.assertEqual(tool_result["tool_use_id"], "toolu_1")
+        summary = json.loads(tool_result["content"])
+        self.assertEqual((summary["income"], summary["expenses"]), (3000.0, 49.4))
+        self.assertEqual(summary["expenses_by_category"][0]["category"], "Transport")
+
+        # How Claude was called.
+        first = fake.requests[0]
+        self.assertEqual(first["model"], "claude-opus-5-5")
+        self.assertEqual(first["fallbacks"], "default")
+        self.assertEqual(first["output_config"], {"effort": "low"})
+        self.assertTrue(all(tool["strict"] for tool in first["tools"]))
+        self.assertIn("Reply in English", first["system"])
+
+        # The conversation is kept for follow-up questions, and can be shown again.
+        history = self.client.get(reverse("assistant_history")).json()["messages"]
+        self.assertEqual([m["role"] for m in history], ["user", "assistant"])
+
+    def test_haiku_is_called_without_the_refusal_fallback(self):
+        fake = FakeClaude([FakeResponse("end_turn", [{"type": "text", "text": "Hi!"}])])
+        with self.settings(AI_MODEL="claude-haiku-5-5"):
+            response = self.ask(fake, "Hi")
+        self.assertEqual(response.json()["reply"], "Hi!")
+        self.assertEqual(fake.requests[0]["model"], "claude-haiku-5-5")
+        self.assertNotIn("fallbacks", fake.requests[0])
+        self.assertNotIn("betas", fake.requests[0])
+
+    def test_follow_up_questions_send_the_whole_conversation(self):
+        self.ask(FakeClaude([FakeResponse("end_turn", [{"type": "text", "text": "Hello!"}])]), "Hi")
+        fake = FakeClaude([FakeResponse("end_turn", [{"type": "text", "text": "Sure."}])])
+        self.ask(fake, "And now?")
+        roles = [m["role"] for m in fake.requests[0]["messages"]]
+        self.assertEqual(roles, ["user", "assistant", "user"])
+
+    def test_reset_starts_a_new_conversation(self):
+        self.ask(FakeClaude([FakeResponse("end_turn", [{"type": "text", "text": "Hello!"}])]), "Hi")
+        self.client.post(reverse("assistant_reset"))
+        self.assertEqual(self.client.get(reverse("assistant_history")).json()["messages"], [])
+
+    def test_refusal(self):
+        response = self.ask(FakeClaude([FakeResponse("refusal", [])]))
+        self.assertEqual(response.json()["reply"], "Sorry, I can't help with that one.")
+
+    def test_replies_in_the_users_language(self):
+        self.client.post(reverse("user_settings"), {"language": "pt-br", "currency": "BRL"})
+        fake = FakeClaude([FakeResponse("end_turn", [{"type": "text", "text": "Oi!"}])])
+        self.ask(fake, "Oi")
+        self.assertIn("Reply in Brazilian Portuguese", fake.requests[0]["system"])
+        self.assertIn("R$ 1.234,56", fake.requests[0]["system"])
+
+    def test_search_includes_recurring_items_in_each_month(self):
+        from .assistant import Tools
+        result = Tools(self.user).tool_search_transactions(
+            text="spotify", category=None, kind="expense",
+            month_from=f"{add_months(self.month, -2):%Y-%m}", month_to=f"{add_months(self.month, 1):%Y-%m}", limit=10)
+        self.assertEqual(result["count"], 2)  # this month and next month (it started this month)
+        self.assertEqual(result["total_expenses"], 47.8)
+
+    def test_upcoming_commitments(self):
+        from .assistant import Tools
+        Expense.objects.create(user=self.user, description="Laptop", amount=Decimal("500"), date=self.month,
+                               frequency=Frequency.INSTALLMENTS, installment_total=3, category=cat(self.user, "shopping"))
+        months = Tools(self.user).tool_upcoming_commitments(months_ahead=3)["months"]
+        self.assertEqual(months[0]["installments"][0]["installment"], "2/3")
+        self.assertEqual(months[0]["committed_total"], 523.9)  # laptop + Spotify
+        self.assertEqual(months[0]["free_after_commitments"], 2476.1)
+        self.assertEqual(months[2]["installments"], [])  # the laptop is paid off by then
+
+    def test_tools_only_see_the_users_own_data(self):
+        from .assistant import Tools
+        stranger = User.objects.create_user("sam", password="a-long-password-123")
+        Expense.objects.create(user=stranger, description="Secret Uber", amount=Decimal("99"), date=self.month)
+        result = Tools(self.user).tool_search_transactions(
+            text="uber", category=None, kind="any", month_from=None, month_to=None, limit=10)
+        self.assertEqual([i["description"] for i in result["items"]], ["Uber *Trip"])
+
+    # --- Adding by chat: drafts that the user confirms ---
+
+    def draft_reply(self, tool, tool_input, text="Check the card and click Add."):
+        return FakeClaude([
+            FakeResponse("tool_use", [{"type": "tool_use", "id": "toolu_d", "name": tool, "input": tool_input}]),
+            FakeResponse("end_turn", [{"type": "text", "text": text}]),
+        ])
+
+    def test_draft_is_not_saved_until_confirmed(self):
+        yesterday = (date.today().toordinal() - 1)
+        yesterday = date.fromordinal(yesterday).isoformat()
+        fake = self.draft_reply("draft_expense", {
+            "description": "Pizza", "amount": 45, "date": yesterday, "category": None,
+            "repeats": "once", "installments": None,
+        })
+        response = self.ask(fake, "add 45 reais of pizza yesterday")
+        draft = response.json()["drafts"][0]
+        self.assertEqual((draft["description"], draft["amount_display"], draft["date"]), ("Pizza", "R$ 45,00", yesterday))
+        self.assertEqual(draft["category_label"], "Food & groceries")  # guessed from "pizza"
+        self.assertFalse(Expense.objects.filter(description="Pizza").exists())  # not saved yet
+
+        # Claude was told it's only a draft.
+        tool_result = json.loads(fake.requests[1]["messages"][-1]["content"][0]["content"])
+        self.assertIn("not saved yet", tool_result["status"])
+
+        url = reverse("assistant_draft_action", args=[draft["id"], "confirm"])
+        result = self.client.post(url).json()
+        self.assertEqual(result["status"], "confirmed")
+        pizza = Expense.objects.get(description="Pizza")
+        self.assertEqual((pizza.amount, pizza.date.isoformat(), pizza.category.system_key), (Decimal("45.00"), yesterday, "food"))
+
+        # Clicking twice doesn't add it twice.
+        self.assertEqual(self.client.post(url).status_code, 400)
+        self.assertEqual(Expense.objects.filter(description="Pizza").count(), 1)
+
+        # The chat shows it as added after a reload, and Claude hears about it with the next question.
+        history = self.client.get(reverse("assistant_history")).json()["messages"]
+        self.assertEqual(history[-1]["drafts"][0]["status"], "confirmed")
+        next_question = FakeClaude([FakeResponse("end_turn", [{"type": "text", "text": "Great."}])])
+        self.ask(next_question, "thanks")
+        self.assertIn("The user saved draft", next_question.requests[0]["messages"][-1]["content"])
+
+    def test_cancel_saves_nothing(self):
+        response = self.ask(self.draft_reply("draft_expense", {
+            "description": "Shoes", "amount": 200, "date": None, "category": None, "repeats": "once", "installments": None,
+        }))
+        draft_id = response.json()["drafts"][0]["id"]
+        result = self.client.post(reverse("assistant_draft_action", args=[draft_id, "cancel"])).json()
+        self.assertEqual(result["status"], "cancelled")
+        self.assertFalse(Expense.objects.filter(description="Shoes").exists())
+
+    def test_installments_and_income_drafts(self):
+        response = self.ask(self.draft_reply("draft_expense", {
+            "description": "Phone", "amount": 200, "date": None, "category": "Shopping",
+            "repeats": "installments", "installments": 4,
+        }))
+        draft_id = response.json()["drafts"][0]["id"]
+        self.client.post(reverse("assistant_draft_action", args=[draft_id, "confirm"]))
+        phone = Expense.objects.get(description="Phone")
+        self.assertEqual((phone.installment_total, phone.category.system_key), (4, "shopping"))
+        self.assertEqual(phone.last_installment_month, add_months(self.month, 3))
+
+        response = self.ask(self.draft_reply("draft_income", {
+            "description": "Website job", "amount": 800, "date": None, "category": "Freelance", "repeats": "once",
+        }))
+        draft_id = response.json()["drafts"][0]["id"]
+        self.client.post(reverse("assistant_draft_action", args=[draft_id, "confirm"]))
+        self.assertEqual(Income.objects.get(description="Website job").category.system_key, "freelance")
+
+    def test_invalid_draft_goes_back_to_claude_as_an_error(self):
+        fake = self.draft_reply("draft_expense", {
+            "description": "Gum", "amount": 0, "date": None, "category": None, "repeats": "once", "installments": None,
+        }, text="How much was it?")
+        response = self.ask(fake)
+        self.assertEqual(response.json()["drafts"], [])
+        tool_result = fake.requests[1]["messages"][-1]["content"][0]
+        self.assertTrue(tool_result["is_error"])
+        self.assertIn("greater than zero", tool_result["content"])
+
+    def test_drafts_belong_to_the_session(self):
+        response = self.ask(self.draft_reply("draft_expense", {
+            "description": "Taxi", "amount": 30, "date": None, "category": None, "repeats": "once", "installments": None,
+        }))
+        draft_id = response.json()["drafts"][0]["id"]
+        stranger = User.objects.create_user("sam", password="a-long-password-123")
+        self.client.force_login(stranger)  # a different session
+        result = self.client.post(reverse("assistant_draft_action", args=[draft_id, "confirm"]))
+        self.assertEqual(result.status_code, 400)
+        self.assertFalse(Expense.objects.filter(description="Taxi").exists())
+
+    # --- Finding, editing and deleting by chat ---
+
+    def uber(self):
+        return Expense.objects.get(description="Uber *Trip")
+
+    def test_search_results_carry_ids(self):
+        from .assistant import Tools
+        result = Tools(self.user).tool_search_transactions(
+            text="uber", category=None, kind="expense", month_from=None, month_to=None, limit=5)
+        self.assertEqual(result["items"][0]["id"], self.uber().pk)
+
+    def test_show_transactions_as_cards(self):
+        response = self.ask(self.draft_reply("show_transactions", {"items": [
+            {"kind": "expense", "id": self.uber().pk}, {"kind": "expense", "id": 999999},
+        ]}, text="Here it is."))
+        card = response.json()["drafts"][0]
+        self.assertEqual(card["type"], "found")
+        self.assertEqual([i["description"] for i in card["items"]], ["Uber *Trip"])
+        self.assertEqual(card["items"][0]["url"], reverse("entry_detail", args=["expense", self.uber().pk]))
+
+    def test_propose_and_apply_an_edit(self):
+        fake = self.draft_reply("propose_change", {
+            "kind": "expense", "id": self.uber().pk, "action": "edit", "description": None,
+            "amount": 52, "date": None, "category": "Food & groceries", "repeats": None,
+        })
+        card = self.ask(fake, "change the uber to 52, it was food").json()["drafts"][0]
+        self.assertEqual(card["type"], "change")
+        self.assertEqual([(c["before"], c["after"]) for c in card["changes"]],
+                         [("R$ 25,50", "R$ 52,00"), ("Transport", "Food & groceries")])
+        self.assertEqual(self.uber().amount, Decimal("25.50"))  # nothing changed yet
+
+        result = self.client.post(reverse("assistant_draft_action", args=[card["id"], "confirm"])).json()
+        self.assertEqual(result["status"], "confirmed")
+        uber = self.uber()
+        self.assertEqual((uber.amount, uber.category.system_key), (Decimal("52.00"), "food"))
+
+    def test_propose_and_confirm_a_delete(self):
+        card = self.ask(self.draft_reply("propose_change", {
+            "kind": "expense", "id": self.uber().pk, "action": "delete", "description": None,
+            "amount": None, "date": None, "category": None, "repeats": None,
+        })).json()["drafts"][0]
+        self.assertTrue(Expense.objects.filter(description="Uber *Trip").exists())
+        result = self.client.post(reverse("assistant_draft_action", args=[card["id"], "confirm"])).json()
+        self.assertIn("Deleted", result["message"])
+        self.assertFalse(Expense.objects.filter(description="Uber *Trip").exists())
+
+    def test_cancelled_change_changes_nothing(self):
+        card = self.ask(self.draft_reply("propose_change", {
+            "kind": "expense", "id": self.uber().pk, "action": "delete", "description": None,
+            "amount": None, "date": None, "category": None, "repeats": None,
+        })).json()["drafts"][0]
+        self.client.post(reverse("assistant_draft_action", args=[card["id"], "cancel"]))
+        self.assertTrue(Expense.objects.filter(description="Uber *Trip").exists())
+
+    def test_recurring_changes_are_flagged(self):
+        spotify = Expense.objects.get(description="Spotify")
+        card = self.ask(self.draft_reply("propose_change", {
+            "kind": "expense", "id": spotify.pk, "action": "edit", "description": None,
+            "amount": 25.9, "date": None, "category": None, "repeats": None,
+        })).json()["drafts"][0]
+        self.assertTrue(card["recurring"])
+
+    def test_cannot_change_someone_elses_transaction(self):
+        stranger = User.objects.create_user("sam", password="a-long-password-123")
+        theirs = Expense.objects.create(user=stranger, description="Theirs", amount=Decimal("10"), date=self.month)
+        fake = self.draft_reply("propose_change", {
+            "kind": "expense", "id": theirs.pk, "action": "delete", "description": None,
+            "amount": None, "date": None, "category": None, "repeats": None,
+        })
+        response = self.ask(fake)
+        self.assertEqual(response.json()["drafts"], [])
+        self.assertTrue(fake.requests[1]["messages"][-1]["content"][0]["is_error"])
+        self.assertTrue(Expense.objects.filter(pk=theirs.pk).exists())
+
+    def test_edit_with_nothing_new_is_an_error_for_claude(self):
+        fake = self.draft_reply("propose_change", {
+            "kind": "expense", "id": self.uber().pk, "action": "edit", "description": "Uber *Trip",
+            "amount": 25.5, "date": None, "category": None, "repeats": None,
+        })
+        self.ask(fake)
+        result = fake.requests[1]["messages"][-1]["content"][0]
+        self.assertTrue(result["is_error"])
+        self.assertIn("Nothing would change", result["content"])
+
+    def test_delete_from_a_found_card_answers_with_json(self):
+        response = self.client.post(reverse("delete_entry", args=["expense", self.uber().pk]),
+                                    headers={"X-Requested-With": "fetch"})
+        self.assertEqual(response.json(), {"message": "Deleted “Uber *Trip”."})
+
+    def test_tool_schemas_follow_the_api_rules(self):
+        """The fake Claude in these tests doesn't check schemas, so check the rules the real API enforces."""
+        from .assistant import TOOLS
+
+        def check(schema, path):
+            if "enum" in schema:
+                self.assertIsInstance(schema.get("type"), str, f"{path}: an enum needs one plain type")
+                self.assertTrue(all(isinstance(v, str) for v in schema["enum"]), f"{path}: enum values must match the type")
+            if schema.get("type") == "object" or "properties" in schema:
+                self.assertEqual(schema.get("additionalProperties"), False, f"{path}: strict needs additionalProperties: false")
+                self.assertEqual(sorted(schema.get("required", [])), sorted(schema.get("properties", {})), f"{path}: strict needs every field required")
+                for name, sub in schema.get("properties", {}).items():
+                    check(sub, f"{path}.{name}")
+            if "items" in schema:
+                check(schema["items"], f"{path}[]")
+
+        for tool in TOOLS:
+            self.assertTrue(tool["strict"])
+            check(tool["input_schema"], tool["name"])
+
+    def test_javascript_has_no_syntax_errors(self):
+        """A syntax error in app.js would break every button, so check it (needs Node.js)."""
+        import shutil
+        import subprocess
+        from pathlib import Path
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("Node.js is not installed")
+        script = Path(__file__).parent / "static" / "transactions" / "app.js"
+        result = subprocess.run([node, "--check", str(script)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_dashboard_has_the_ask_bar(self):
+        response = self.client.get(reverse("dashboard"))
+        self.assertContains(response, "data-assistant-form")
+        self.assertContains(response, "Ask about your finances…")

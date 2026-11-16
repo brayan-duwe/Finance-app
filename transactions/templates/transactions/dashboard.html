@@ -11,7 +11,67 @@
 </div>
 {% if not is_current_month %}<p class="center"><a class="muted-link" href="{% url 'dashboard' %}">{% translate "Back to this month" %}</a></p>{% endif %}
 
-<section class="card chart-card" data-chart>
+{# AI assistant: a slim ask bar that grows into a small chat (and can expand over the page) #}
+<section class="assistant" data-assistant
+         data-history-url="{% url 'assistant_history' %}" data-reset-url="{% url 'assistant_reset' %}"
+         data-thinking="{% translate 'Thinking…' %}"
+         data-error="{% translate 'Something went wrong. Try again.' %}"
+         data-draft-url="{% url 'assistant_draft_action' 'DRAFT' 'ACTION' %}"
+         data-label-add="{% translate 'Add' %}" data-label-cancel="{% translate 'Cancel' %}"
+         data-label-added="{% translate 'Added' %}" data-label-cancelled="{% translate 'Cancelled' %}"
+         data-label-close="{% translate 'Close' %}"
+         data-label-open="{% translate 'Open' %}" data-label-delete="{% translate 'Delete' %}"
+         data-label-deleted="{% translate 'Deleted' %}"
+         data-label-delete-question="{% translate 'Delete this entry?' %}"
+         data-label-every-month="{% translate 'This changes every month it counts in.' %}">
+  <div class="assistant-panel" data-assistant-panel>
+    <div class="assistant-panel-inner">
+      <div class="assistant-head">
+        <span class="assistant-title"><span class="assistant-spark" aria-hidden="true">✦</span>{% translate "Assistant" %}</span>
+        <div class="assistant-actions">
+          <button type="button" class="icon-btn small" data-assistant-reset aria-label="{% translate 'New conversation' %}" title="{% translate 'New conversation' %}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+          </button>
+          <button type="button" class="icon-btn small" data-assistant-expand aria-label="{% translate 'Expand' %}" title="{% translate 'Expand' %}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+          </button>
+          <button type="button" class="icon-btn small" data-assistant-close aria-label="{% translate 'Close' %}" title="{% translate 'Close' %}">×</button>
+        </div>
+      </div>
+      <div class="assistant-messages" data-assistant-messages aria-live="polite"></div>
+    </div>
+  </div>
+
+  <form class="assistant-bar" method="post" action="{% url 'assistant_ask' %}" data-assistant-form>
+    {% csrf_token %}
+    <span class="assistant-spark" aria-hidden="true">✦</span>
+    <input type="text" name="message" maxlength="1000" autocomplete="off"
+           placeholder="{% translate 'Ask about your finances…' %}" aria-label="{% translate 'Ask the assistant' %}">
+    <button type="submit" class="assistant-send" aria-label="{% translate 'Send' %}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+    </button>
+  </form>
+
+  <div class="assistant-suggestions" data-assistant-suggestions>
+    {% translate "Where am I spending the most this month?" as s1 %}
+    {% translate "Can I afford a new purchase this month?" as s2 %}
+    {% translate "How can I save money?" as s3 %}
+    {% translate "Compare my last 3 months" as s4 %}
+    <button type="button" class="chip" data-suggestion>{{ s1 }}</button>
+    <button type="button" class="chip" data-suggestion>{{ s2 }}</button>
+    <button type="button" class="chip" data-suggestion>{{ s3 }}</button>
+    <button type="button" class="chip" data-suggestion>{{ s4 }}</button>
+  </div>
+</section>
+<div class="assistant-backdrop" data-assistant-backdrop hidden></div>
+
+<section class="card chart-section" data-chart-card>
+  {# Mês | Tendência: switches the card between the donut and the line chart #}
+  <nav class="segmented chart-views" aria-label="{% translate 'Chart view' %}" data-chart-views hidden>
+    <a href="#month" data-view="month" aria-current="true">{% translate "Month" %}</a>
+    <a href="#trend" data-view="trend">{% translate "Trend" %}</a>
+  </nav>
+  <div class="chart-card" data-chart data-view-panel="month">
   {% if income_total > 0 %}
     <div class="donut-wrap">
       <svg class="donut" viewBox="0 0 42 42" role="img"
@@ -46,7 +106,7 @@
       {% for s in chart.segments %}
         {% blocktranslate asvar detail with income_pct=s.percent spend_pct=s.share %}{{ income_pct }}% of income · {{ spend_pct }}% of spending{% endblocktranslate %}
         <li>
-          <button type="button" class="legend-item" data-index="{{ forloop.counter0 }}" aria-pressed="false"
+          <button type="button" class="legend-item" data-index="{{ forloop.counter0 }}" data-category-id="{{ s.category_id }}" aria-pressed="false"
                   aria-expanded="false" aria-controls="legend-items-{{ forloop.counter0 }}"
                   data-label="{{ s.label }}" data-color="{{ s.color }}"
                   data-amount="{{ s.amount|money:currency }}" data-detail="{{ detail }}">
@@ -107,12 +167,47 @@
       <a class="btn primary" href="{% url 'add_income' %}" data-panel>{% translate "Add salary" %}</a>
     </div>
   {% endif %}
+  </div>
+
+  {# The line chart is drawn by app.js from the data below (so it can switch range/category instantly) #}
+  <div class="trend" data-view-panel="trend" hidden>
+    <div class="trend-head">
+      <div class="trend-heading">
+        <span class="trend-title" data-trend-title
+              data-all="{% translate 'Spending and income' %}"></span>
+        <button type="button" class="trend-clear" data-trend-clear hidden>
+          <span class="chip-dot" data-trend-dot></span><span data-trend-category></span>
+          <span aria-hidden="true">×</span>
+        </button>
+      </div>
+      <nav class="segmented trend-range" aria-label="{% translate 'Period' %}">
+        <a href="#3" data-range="3">3m</a>
+        <a href="#6" data-range="6" aria-current="true">6m</a>
+        <a href="#12" data-range="12">12m</a>
+      </nav>
+    </div>
+    <div class="trend-chart" data-trend-chart
+         data-label-expenses="{% translate 'Expenses' %}" data-label-income="{% translate 'Income' %}"
+         data-empty="{% translate 'Not enough data yet. Add expenses or import a statement to see your trend.' %}"></div>
+    <div class="trend-legend" data-trend-legend>
+      <span><span class="trend-key trend-key-expenses"></span>{% translate "Expenses" %}</span>
+      <span><span class="trend-key trend-key-income"></span>{% translate "Income" %}</span>
+    </div>
+  </div>
+  {{ trend|json_script:"trend-data" }}
 </section>
 
 <section class="card" data-filter-area>
   <div class="transactions-header">
     <h2>{% translate "Transactions" %}</h2>
     {% if entries %}
+      {# Search: filters this month's list as you type (with the type filter below) #}
+      <label class="transactions-search" data-search-wrap hidden>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input type="search" data-transactions-search autocomplete="off"
+               placeholder="{% translate 'Search…' %}" aria-label="{% translate 'Search transactions' %}">
+      </label>
       {# Links work without JavaScript; with it, filtering is instant (no reload). #}
       <nav class="segmented" aria-label="{% translate 'Filter transactions' %}">
         {% for value, label, count in filters %}
@@ -127,7 +222,7 @@
   {% if entries %}
     <ul class="entries">
       {% for entry in entries %}
-        <li class="entry" data-kind="{{ entry.kind }}"{% if active_filter != "all" and entry.kind != active_filter %} hidden{% endif %}>
+        <li class="entry" data-kind="{{ entry.kind }}" data-search="{{ entry.description }} {{ entry.original_description|default:'' }} {{ entry.category.label }}"{% if active_filter != "all" and entry.kind != active_filter %} hidden{% endif %}>
           <a class="entry-main" href="{% url 'entry_detail' entry.kind entry.pk %}?next={{ request.get_full_path|urlencode }}">
             <span class="entry-desc">{{ entry.description }}</span>
             <span class="entry-meta">
@@ -155,6 +250,7 @@
     </ul>
     <p class="muted" data-empty-for="expense"{% if active_filter != "expense" or expense_count %} hidden{% endif %}>{% translate "No expenses this month." %}</p>
     <p class="muted" data-empty-for="income"{% if active_filter != "income" or income_count %} hidden{% endif %}>{% translate "No income this month." %}</p>
+    <p class="muted" data-empty-search hidden data-template="{% translate 'Nothing found for “%s” this month. Tip: ask the assistant to search other months.' %}"></p>
   {% else %}
     <p class="muted">{% translate "Nothing here yet. Use “+ Add” to import a statement or add an expense." %}</p>
   {% endif %}
