@@ -4,6 +4,8 @@
 
 Um app de finanças pessoais feito com Django: importe a fatura do cartão, acompanhe para onde vai o seu dinheiro e converse com um assistente de IA que conhece os seus gastos.
 
+🔗 **O projeto está hospedado online! [Testar agora](https://finance-app-rkou.onrender.com)**: crie uma conta e teste à vontade.
+
 ## Funcionalidades
 
 **Dashboard**
@@ -11,6 +13,26 @@ Um app de finanças pessoais feito com Django: importe a fatura do cartão, acom
 - Toque numa categoria para ver as despesas dela, da maior para a menor.
 - Visão **Tendência**: gráfico de linhas de 3, 6 ou 12 meses, geral ou por categoria.
 - Lista de transações com busca instantânea e filtro *Todas · Despesas · Receitas*.
+
+https://github.com/user-attachments/assets/88df44bf-a512-45e6-9e5e-c5638eb58894
+
+*Criando uma despesa, importando despesas a partir de uma fatura de banco, visualização de gráficos e interação com a assistente de IA.*
+
+<table>
+  <tr>
+    <td width="50%"><img alt="Gráfico em Donut representando os gastos mensais com base no salário/valor na conta" src="https://github.com/user-attachments/assets/f563e308-c324-4b6c-bbb2-96a4937f47d5" /></td>
+    <td width="50%"><img alt="Gráfico em linhas comparando os gastos e ganhos nos últimos meses" src="https://github.com/user-attachments/assets/8c2dabd6-6063-4bf0-b828-1aa3c1cdf713" /></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Gráfico em Donut representando os gastos mensais com base no salário/valor na conta</em></td>
+    <td align="center"><em>Gráfico em linhas comparando os gastos e ganhos nos últimos meses</em></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img width="560" alt="Pedindo para a assistente de IA para deletar uma conta" src="https://github.com/user-attachments/assets/e752eff9-bbe5-4583-ab85-ecce7be1208c" /><br />
+  <em>Pedindo para a assistente de IA para deletar uma conta</em>
+</p>
 
 **Importação de faturas (CSV ou PDF)**
 - Detecta as colunas sozinho (data, descrição, valor, parcela, categoria do banco), em português, inglês ou espanhol.
@@ -110,12 +132,13 @@ locale/                   traduções (pt-BR, es)
 
 <a id="english"></a>
 
-# Finances
+# Finances💰
 
 [Português](#finances) · **English**
 
 A personal finance app built with Django: import your credit card statement, see where your money goes, and chat with an AI assistant that knows your spending.
 
+🔗 **The project is live online! [Try it now](https://finance-app-rkou.onrender.com)**: create an account and play around.
 
 ## Features
 
@@ -124,6 +147,26 @@ A personal finance app built with Django: import your credit card statement, see
 - Tap a category to see its expenses, biggest first.
 - **Trend** view: a line chart for 3, 6 or 12 months, overall or per category.
 - Transactions list with instant search and an *All · Expenses · Income* filter.
+
+https://github.com/user-attachments/assets/88df44bf-a512-45e6-9e5e-c5638eb58894
+
+*Adding an expense, importing expenses from a bank statement, exploring the charts, and chatting with the AI assistant.*
+
+<table>
+  <tr>
+    <td width="50%"><img alt="Donut chart showing the month's spending against the salary or account balance" src="https://github.com/user-attachments/assets/f563e308-c324-4b6c-bbb2-96a4937f47d5" /></td>
+    <td width="50%"><img alt="Line chart comparing expenses and income over the last months" src="https://github.com/user-attachments/assets/8c2dabd6-6063-4bf0-b828-1aa3c1cdf713" /></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Donut chart showing the month's spending against the salary or account balance</em></td>
+    <td align="center"><em>Line chart comparing expenses and income over the last months</em></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img width="560" alt="Asking the AI assistant to delete a transaction" src="https://github.com/user-attachments/assets/e752eff9-bbe5-4583-ab85-ecce7be1208c" /><br />
+  <em>Asking the AI assistant to delete a transaction</em>
+</p>
 
 **Statement import (CSV or PDF)**
 - Finds the columns by itself (date, description, amount, installment, bank category), in Portuguese, English or Spanish.
